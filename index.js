@@ -1096,6 +1096,10 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
         const execPromise = util.promisify(e.exec);
         const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`
         const execPromiseResult = await execPromise(execCommand);
+
+        logNewLine(dir+' has been created. Rerun ' + oAppContext.descriptiveName '. Use --select option to choose an existing SVN version.', 'white');
+
+        process.exit(0);
     }
     const svnInfoPromise = util.promisify(svnUltimate.commands.info);
     const infoResult = await svnInfoPromise(dirWithQuotedProjectName);
