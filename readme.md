@@ -12,7 +12,7 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 1. Start a terminal (i.e. git bash, windows terminal, powershell console) in a folder where you want to store the Anglo helper program 
 2. Clone the git repo. Execute `git clone https://github.com/guidohollander/anglo-helper` in the terminal. It will create a new folder `anglo-helper`.
 3. Navigate (change directory) into the anglo-helper folder and run `npm install -g`. It will automatically install dependencies for running Anglo helper and make it available 'globally' on your computer. It's now ready to be used.
-4. Navigate (change directory) to one of your workspace folders
+4. Navigate (change directory) to one of your **workspace** folders
 5. Run `anglo-helper`. Since it is the first run, a number of questions as asked which are stored in a profile (<workspace>/profile_1.json).
 
 ## Command line options (anglo-helper --version)

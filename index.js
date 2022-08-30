@@ -172,7 +172,7 @@ async function prequal() {
                 type: "input",
                 name: "svnOptionsUsername",
                 default: "",
-                message: "SVN: Please provide your SVN user name. It's usually in the format 'xxx.xxxx' or 'ext-xxx.xxxx', for example 'ext-jane.doe' ",
+                message: "SVN: Optionally provide your SVN user name. It's usually in the format 'xxx.xxxx' or 'ext-xxx.xxxx', for example 'ext-jane.doe' ",
                 when: (answers) => answers.autoSwitch || answers.autoUpdate
             },
             {
@@ -180,7 +180,7 @@ async function prequal() {
                 name: "svnOptionsPassword",
                 default: "",
                 message: "SVN: Please provide your SVN password. ",
-                when: (answers) => answers.autoSwitch || answers.autoUpdate
+                when: (answers) => answers.svnOptionsUsername && (answers.autoSwitch || answers.autoUpdate)
             },
             {
                 type: "confirm",
@@ -223,17 +223,17 @@ async function prequal() {
                 when: (answers) => answers.flyway
             },
             {
-                type: "password",
+                type: "input",
                 name: "flywayDatabasePassword",
-                default: "root",
-                message: "Flyway: What database password can " + oAppContext.descriptiveName + " use to access the database? For example 'welcome123' ",
+                default: "1",
+                message: "Flyway: What database password can " + oAppContext.descriptiveName + " use to access the database? Default: '1' ",
                 when: (answers) => answers.flyway
             },
             {
                 type: "confirm",
                 name: "compareSpecific",
                 message: "Specific compare: " + oAppContext.descriptiveName + " can [C]ompare your specific projects with specific projects in another repository. Would you like to enable this feature? ",
-                default: true
+                default: false
             },
             {
                 type: "input",
@@ -255,7 +255,7 @@ async function prequal() {
                 if (checkdb(answers)) {
                     var filename = workingCopyFolder + "profile_" + sequenceNumber + ".json";
                     //workaround: if password contains problematic characters then remove svn username and password. User then has to login once, manually
-                    if (answers.svnOptionsUsername.includes('"') || answers.svnOptionsPassword.includes('"')) {
+                    if (answers.svnOptionsUsername && answers.svnOptionsUsername.includes('"') || answers.svnOptionsPassword && answers.svnOptionsPassword.includes('"')) {
                         delete answers.svnOptionsUsername;
                         delete answers.svnOptionsPassword;
                     }
@@ -282,11 +282,9 @@ async function prequal() {
         renderTitleToVersion();
 
         const svnToVersionBranchesChoices = await svnListPromise(oSVNInfo.appRoot + '/branches');
-        let qBranches = svnToVersionBranchesChoices.list.entry.filter(q => !q.name.startsWith('cd_')).slice(-5).map(b => 'branches/'.concat(b.name));
-        const svnToVersionTagsChoices = await svnListPromise(oSVNInfo.appRoot + '/tags');
-        let qTags = svnToVersionTagsChoices.list.entry.filter(q => !q.name.startsWith('cd_')).slice(0).map(t => 'tags/'.concat(t.name));
+        let qBranches = svnToVersionBranchesChoices.list.entry.filter(q => !q.name.startsWith('cd_')).slice(-10).map(b => 'branches/'.concat(b.name));
 
-        let qarrToVersion = qBranches.concat(qTags);
+        let qarrToVersion = qBranches //.concat(qTags);
         qarrToVersion.push('trunk');
 
         const questionsToVersion = [
@@ -301,11 +299,6 @@ async function prequal() {
         await inquirer
             .prompt(questionsToVersion)
             .then((answersToVersion) => {
-                console.log('you picked', answersToVersion.selectedSVNVersion);
-
-
-
-                //override
                 oSVNInfo.remoteRepo = oSVNInfo.appRoot + answersToVersion.selectedSVNVersion
                 var urlParts = oSVNInfo.remoteRepo.split('/');
                 oSVNInfo.angloSVNPath = urlParts[urlParts.length - 1];
@@ -342,19 +335,6 @@ async function prequal() {
         //profile.filename='testprofile.json';
         main(profile, oSVNInfo);
     }
-}
-
-async function appEnvironment() {
-    try {
-
-    } catch (error) {
-        //console.log(error)
-        console.dir('Errors occurred:', error);//chalk.redBright(
-        beep(3);
-    }
-
-    process.stdout.write('\n');
-    process.exit(0);
 }
 
 async function main(profile, oSVNInfo) {
@@ -394,7 +374,14 @@ async function main(profile, oSVNInfo) {
         s = 'profile';
         logNewLine(s + ':' + giveSpace(s, sp) + '[' + profile.filename + ':' + ' [S]witch]:' + profile.autoSwitch + ' | [U]pdate:' + profile.autoUpdate + ' | [F]lyway:' + profile.flyway + ' | [C]ompare specific:' + profile.compareSpecific, 'cyan');
         s = oAppContext.descriptiveName.toLowerCase() + ' version';
-        logNewLine(s + ':' + giveSpace(s, sp) + embrace(oAppContext.version), 'cyan');
+
+        logNewLine(s + ':' + giveSpace(s, sp) + embrace('local:' +oAppContext.version + ' | remote: ' + await getRemoteAppVersion()), 'cyan');
+
+        if(repo.includes('branches')&&profile.flyway&&!argv.flyway) {
+            profile.flyway=false;
+            logNewLine('','white');
+            logNewLine("The current workspace points to a branch. " + oAppContext.descriptiveName + " disabled profile setting 'Flyway', as it might have undesireable effects on the database. To enable, use command line option --flyway.",'red')
+        }
 
         if (true) { //profile.autoSwitch || profile.autoUpdate || argv.select
             //get externals
@@ -1058,6 +1045,13 @@ function getDifference(setA, setB) {
 
 function getProbableApp() {
 
+    const svnDir = `.svn`
+    if (fs.existsSync(svnDir)) {
+        //exit
+        logNewLine('Do not run this application in an SVN working copy folder. Move to the root of your workspace or an empy folder.','red');
+        process.exit(0);
+    }
+
     const cwd = process.cwd().toLowerCase();
     var probableApp = '';
     if (argv.app) {
@@ -1083,23 +1077,42 @@ function getProbableApp() {
 }
 
 async function getSVNContext(app, workingCopyFolder, switchedTo) {
-
     const dirWithQuotedProjectName = (workingCopyFolder + '\\' + JSON.stringify(app.toUpperCase() + " Portal")).replace(/[\\/]+/g, '/')//.replace(/^([a-zA-Z]+:|\.\/)/, '');
     const dir = `.//${app.toUpperCase()} Portal`
     if (!fs.existsSync(dir)) {
+        renderTitleToVersion();
+        var appRoot = `https://svn.bearingpointcaribbean.com/svn/${app}_anguilla`;
 
-        //const url = `https://svn.bearingpointcaribbean.com/svn/${app}_anguilla/trunk/` + JSON.stringify(app.toUpperCase() + " Portal")  
+        const svnToVersionBranchesChoices = await svnListPromise(appRoot + '/branches');
+        let qBranches = svnToVersionBranchesChoices.list.entry.filter(q => !q.name.startsWith('cd_')).slice(-10).map(b => 'branches/'.concat(b.name));
+        let qarrToVersion = qBranches
+        qarrToVersion.push('trunk');
 
-        const url = `https://svn.bearingpointcaribbean.com/svn/${app.toUpperCase()}_ANGUILLA/trunk/${app.toUpperCase()} Portal`;
+        const questionsToVersion = [
+            {
+                type: "list",
+                name: "selectedSVNVersion",
+                message: "Pick a version, any version.",
+                choices: qarrToVersion,
+                default: 'trunk'
+            },]
 
-        const e = require("child_process");
-        const execPromise = util.promisify(e.exec);
-        const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`
-        const execPromiseResult = await execPromise(execCommand);
-
-        logNewLine(dir+' has been created. Rerun ' + oAppContext.descriptiveName '. Use --select option to choose an existing SVN version.', 'white');
-
-        process.exit(0);
+        await inquirer
+            .prompt(questionsToVersion)
+            .then(async (answersToVersion) =>  {
+                const url = `https://svn.bearingpointcaribbean.com/svn/${app.toUpperCase()}_ANGUILLA/${answersToVersion.selectedSVNVersion}/${app.toUpperCase()} Portal`;
+                const e = require("child_process");
+                const execPromise = util.promisify(e.exec);
+                const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`
+                const execPromiseResult = await execPromise(execCommand);
+            })
+            .catch((error) => {
+                if (error.isTtyError) {
+                    console.log("Your console environment is not supported!")
+                } else {
+                    console.dir(error)
+                }
+            })
     }
     const svnInfoPromise = util.promisify(svnUltimate.commands.info);
     const infoResult = await svnInfoPromise(dirWithQuotedProjectName);
@@ -1134,8 +1147,6 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
         currentVersion: currentVersion,
         remoteRepo: remoteRepo
     };
-
-    return infoResult.entry.url
 }
 
 
@@ -1246,4 +1257,32 @@ function arraymove(arr, fromIndex, toIndex) {
     var element = arr[fromIndex];
     arr.splice(fromIndex, 1);
     arr.splice(toIndex, 0, element);
+}
+
+async function getRemoteAppVersion(){
+
+    try {
+    let url = "https://raw.githubusercontent.com/guidohollander/anglo-helper/master/package.json";
+    const https = require('https');
+    https.get(url,(res) => {
+        let body = "";    
+        res.on("data", (chunk) => {
+            body += chunk;
+        });    
+        res.on("end", () => {
+            try {
+                let json = JSON.parse(body);
+                return json.version
+            } catch (error) {
+                console.error(error.message);
+            };
+        });    
+    }).on("error", (error) => {
+        console.error(error.message);
+    });
+    } catch (error) {
+        //console.log(error)
+        console.dir('Errors occurred:', error);//chalk.redBright(
+        beep(3);
+    }    
 }

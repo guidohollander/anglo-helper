@@ -1,0 +1,5 @@
+/.vscode
+/all.json
+/format.json
+/include copy.json
+node_modules/
