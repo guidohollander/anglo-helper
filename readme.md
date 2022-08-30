@@ -17,35 +17,7 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 
 ## Command line options (anglo-helper --version)
 
-      --version            Show version number                         [boolean]
-  -a, --app                choose an app                 [choices: "mbs", "mts"]
-  -w, --workingCopyFolder  specify working copy folder                  [string]
-  -s, --select             switch to a selected version                [boolean]
-  -v, --verbose            provide additional information in the output
-                                                      [boolean] [default: false]
-  -p, --profile            use a particular profile                     [string]
-  -j, --writeJsonFiles     write intermediate json files, like externals.jon,
-                           internals.json and all.json                  [string]
-  -d, --deploymentCheck    write intermediate json files, like externals.jon,
-                           internals.json and all.json                 [boolean]
-  -t, --tagReport          generate a report for each project          [boolean]
-  -f, --forceSVN           write intermediate json files, like externals.jon,
-                           internals.json and all.json                 [boolean]
-      --switch, --fw       enable switch, also when not enabled in profile
-                                                                       [boolean]
-      --update, --fu       enable update, also when not enabled in profile
-                                                                       [boolean]
-      --flyway, --ff       enable flyway, also when not enabled in profile.
-                           Profile must contain flyway configuration to have
-                           effect.                                     [boolean]
-      --compare, --fc      enable specific compare, also when not enabled in
-                           profile. Profile must contain compare configuration
-                           to have effect.                             [boolean]
-  -k, --keepUp             update potential updates from the last run .[boolean]
-      --project, --pr      limit to a single project. Specify a string with a
-                           single project, i.e. "_CONTINUOUS_DELIVERY" or
-                           "Development related".                       [string]
-  -h, --help               Show help                                   [boolean]
+![alt text](https://https://github.com/guidohollander/anglo-helper/blob/master/help.png?raw=true)
 
 ## Examples
 
