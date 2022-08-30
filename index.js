@@ -375,7 +375,7 @@ async function main(profile, oSVNInfo) {
         logNewLine(s + ':' + giveSpace(s, sp) + '[' + profile.filename + ':' + ' [S]witch]:' + profile.autoSwitch + ' | [U]pdate:' + profile.autoUpdate + ' | [F]lyway:' + profile.flyway + ' | [C]ompare specific:' + profile.compareSpecific, 'cyan');
         s = oAppContext.descriptiveName.toLowerCase() + ' version';
 
-        logNewLine(s + ':' + giveSpace(s, sp) + embrace('local:' +oAppContext.version + ' | remote: ' + await getRemoteAppVersion()), 'cyan');
+        logNewLine(s + ':' + giveSpace(s, sp) + embrace(oAppContext.version), 'cyan');
 
         if(repo.includes('branches')&&profile.flyway&&!argv.flyway) {
             profile.flyway=false;
