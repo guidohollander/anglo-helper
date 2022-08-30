@@ -4,7 +4,7 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 
 ## Requirements
 
-* [Node.js](https://nodejs.org/dist/v16.17.0/node-v16.17.0-x64.msi) LTS 16.17.0 (including NPM 8.15.0)
+* [Node.js](https://nodejs.org/dist/v16.17.0/node-v16.17.0-x64.msi) LTS 16.16.0 (including NPM 8.15.0)
 * [Git](https://git-scm.com/)
 
 ## Installation steps
