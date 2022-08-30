@@ -17,7 +17,7 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 
 ## Command line options (anglo-helper --version)
 
-![](https://raw.githubusercontent.com/guidohollander/anglo-helper/master/doc/help.png?raw=true | width=300)
+<img src="https://raw.githubusercontent.com/guidohollander/anglo-helper/master/doc/help.png" alt="help" width="300"/>
 
 ## Examples
 
