@@ -16,6 +16,7 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 5. Run `anglo-helper`. Since it is the first run, a number of questions as asked which are stored in a profile (<workspace>/profile_1.json).
 
 ## Command line options (anglo-helper --version)
+
       --version            Show version number                         [boolean]
   -a, --app                choose an app                 [choices: "mbs", "mts"]
   -w, --workingCopyFolder  specify working copy folder                  [string]
@@ -50,23 +51,23 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 
 * Run Anglo Helper with the default profile (profile_1.json). At first run, the default profile is created based on a questionaire.
 
-    $> `anglo-helper`
+    $ `anglo-helper`
     
 * Change or copy your profile
     
-    $> `nano profile_1.json` or `notepad profile_1.json`
+    $ `nano profile_1.json` or `notepad profile_1.json`
 
 * Run Anglo Helper with an alternative profile (i.e., anglo-helper_profile_update.json)
 
-    $> `anglo-helper --profile anglo-helper_profile_update.json`
+    $ `anglo-helper --profile profile_update.json`
 
 * Select an svn version to upgrade or downgrade your current workspace to. Anglo-helper will automatically switch
 
-    $> `anglo-helper --select`
+    $ `anglo-helper --select`
 
 * Perform a deployment check, meaning that all externals should have been tagged
 
-    $> `anglo-helper --deploymentCheck
+    $ `anglo-helper --deploymentCheck`
     
 ## License
 
