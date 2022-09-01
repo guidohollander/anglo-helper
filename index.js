@@ -515,7 +515,8 @@ async function main(profile, oSVNInfo) {
         const processLookupResultList = await processLookup({ command: 'Be Informed AMS.exe', psargs: app })
         let beInformedRunning = false;
         processLookupResultList.forEach(function (process) {
-            if (process && JSON.stringify(process.arguments).includes(app) && !argv.forceSVN) {
+            //use -data argument to be more specific in determining when be informed is running
+            if (process && (JSON.stringify(process.arguments).includes('-data') && JSON.stringify(process.arguments).includes(app) || !JSON.stringify(process.arguments).includes('-data')) && !argv.forceSVN) {
                 beInformedRunning = true
 
             }
