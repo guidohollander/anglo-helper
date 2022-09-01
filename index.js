@@ -670,8 +670,8 @@ async function main(profile, oSVNInfo) {
                 //perform db migrations if flyway enabled and current project has a migration folder (component or general)
                 if (profile.flyway) {
 
-                    const flywayDatabaseTable = 'migrations';
-                    const flywayDatabaseSchema = '__MigrationsHistory';
+                    const flywayDatabaseTable = '__MigrationsHistory';
+                    const flywayDatabaseSchema = 'migrations';
 
                     if (entry.componentContinuousDeliveryFolderFound || entry.generalContinuousDeliveryFolderFound) {
                         var flywayTable;
@@ -686,7 +686,7 @@ async function main(profile, oSVNInfo) {
 
                         flywayDatabaseConnectionString = `jdbc:sqlserver://${profile.flywayDatabaseServer}:${profile.flywayDatabaseServerPort};databaseName=${profile.flywayDatabaseName};integratedSecurity=false;user=${profile.flywayDatabaseUsername};password=${profile.flywayDatabasePassword};`
 
-                        let flywayCommand = profile.flywayPath + 'flyway migrate -color=always -locations=' + flywayLocations + ' -schemas=' + flywayDatabaseSchema + ' -table=' + flywayTable + ' -url=' + flywayDatabaseConnectionString
+                        let flywayCommand = profile.flywayPath + 'flyway migrate -color=always -locations=' + flywayLocations + ' -schemas=' + flywayDatabaseSchema + ' -table=' + flywayTable + ' -url=' + flywayDatabaseConnectionString + ' -user=' + profile.flywayDatabaseUsername  + ' -password=' +  profile.flywayDatabasePassword
 
                         let flywayResult = await execShellCommand(flywayCommand);
                         flywayResult = flywayResult.replace(/^Database: .*\(Microsoft SQL Server [\d]+\.[\d]+\)/m, '');
