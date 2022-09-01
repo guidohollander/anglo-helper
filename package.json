@@ -1,7 +1,7 @@
 {
   "name": "anglo-helper",
   "descriptivename": "Anglo helper",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Anglo helper with support for svn and flyway",
   "main": "index.js",
   "bin": {
