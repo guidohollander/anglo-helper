@@ -1,5 +1,6 @@
 /.vscode
 /all.json
 /format.json
+/jira.js
 /include copy.json
 node_modules/
