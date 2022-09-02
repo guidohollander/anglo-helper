@@ -45,9 +45,9 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
     
 * Override profile settings for to enable switch, update, flyway, verbose. Can be combined
 
-    $ `anglo-helper --update
-    
-    $ `anglo-helper --flyway --verbose    
+    $ `anglo-helper --update`
+
+    $ `anglo-helper --flyway --verbose`    
     etc.
     
 * Force anglo-helper to perform actions on a single project only. Can be combined with other arguments
@@ -56,9 +56,9 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
     
 * Force anglo-helper to start operating starting from a particular row or project name and skip all projects that are alphabetically before that. These options can, but should not be combined since row numbers are relative to the complete set.
 
-    $ `anglo-helper --startRow 10
-
-    $ `anglo-helper --startProject 'SC Tax return'
+    $ `anglo-helper --startRow 10`
+    
+    $ `anglo-helper --startProject 'SC Tax return'`
     
 ## License
 
