@@ -104,6 +104,16 @@ const argv = yargs
         default: '1', //defausomething that is alphabetically before anything else
         type: 'string'
     })
+    .option('argv.svnOptionsUsername', {
+        description: 'svn username',
+        default: '',
+        type: 'string'
+    })
+    .option('argv.svnOptionsPassword', {
+        description: 'svn password',
+        default: '',
+        type: 'string'
+    })
     .help()
     .alias('help', 'h').argv;
 
@@ -193,14 +203,14 @@ async function prequal() {
             {
                 type: "input",
                 name: "svnOptionsUsername",
-                default: "",
+                default: argv.svnOptionsUsername,
                 message: "SVN: Optionally provide your SVN user name. It's usually in the format 'xxx.xxxx' or 'ext-xxx.xxxx', for example 'ext-jane.doe' ",
                 when: (answers) => answers.autoSwitch || answers.autoUpdate
             },
             {
                 type: "input",
                 name: "svnOptionsPassword",
-                default: "",
+                default: argv.svnOptionsPassword,
                 message: "SVN: Please provide your SVN password. ",
                 when: (answers) => answers.svnOptionsUsername && (answers.autoSwitch || answers.autoUpdate)
             },
@@ -1115,10 +1125,22 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
     const dir = `.//${app.toUpperCase()} Portal`
     if (!fs.existsSync(dir)) {
         renderTitleToVersion();
+        let qBranches;
         var appRoot = `https://svn.bearingpointcaribbean.com/svn/${app}_anguilla`;
+        try {
 
-        const svnToVersionBranchesChoices = await svnListPromise(appRoot + '/branches');
-        let qBranches = svnToVersionBranchesChoices.list.entry.filter(q => !q.name.startsWith('cd_')).slice(-10).map(b => 'branches/'.concat(b.name));
+            let svnOptions = { trustServerCert: true };
+            //if provided, add username and password to the svn options
+            if (argv.svnOptionsUsername && argv.svnOptionsPassword) {
+                svnOptions.username = argv.svnOptionsUsername
+                svnOptions.password = argv.svnOptionsPassword
+            };
+            const svnToVersionBranchesChoices = await svnListPromise(appRoot + '/branches', svnOptions);
+            qBranches = svnToVersionBranchesChoices.list.entry.filter(q => !q.name.startsWith('cd_')).slice(-10).map(b => 'branches/'.concat(b.name));
+        } catch (error) {
+            logThisLine(`Can't login into SVN. Provide them on the command line, at least once, using --svnOptionsUsername [username] --svnOptionsPassword [password] `, 'red');
+            process.exit(0);
+        }
         let qarrToVersion = qBranches
         qarrToVersion.push('trunk');
 

@@ -37,7 +37,7 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 
 * Select an svn version to upgrade or downgrade your current workspace to. Anglo-helper will automatically switch
 
-    $ `anglo-helper --select`
+    $ `anglo-helper --select` 
 
 * Perform a deployment check, meaning that all externals should have been tagged
 
@@ -57,7 +57,7 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 * Force anglo-helper to start operating starting from a particular row or project name and skip all projects that are alphabetically before that. These options can, but should not be combined since row numbers are relative to the complete set.
 
     $ `anglo-helper --startRow 10`
-    
+
     $ `anglo-helper --startProject 'SC Tax return'`
     
 ## License
