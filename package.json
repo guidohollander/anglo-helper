@@ -11,14 +11,17 @@
   "author": "Guido Hollander",
   "license": "ISC",
   "dependencies": {
+    "axios": "^0.27.2",
     "child_process": "^1.0.2",
     "clear": "^0.1.0",
     "glob": "^8.0.3",
     "inquirer": "^8.0.0",
+    "jira-client": "^8.1.0",
     "mssql": "^9.0.0",
     "node-beep": "^0.0.3",
     "node-svn-ultimate": "^1.2.1",
     "ps-node": "^0.1.6",
+    "xlsx": "^0.18.5",
     "yargs": "^17.5.1"
   },
   "engines": {

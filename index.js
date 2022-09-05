@@ -104,13 +104,23 @@ const argv = yargs
         default: '1', //defausomething that is alphabetically before anything else
         type: 'string'
     })
-    .option('argv.svnOptionsUsername', {
+    .option('svnOptionsUsername', {
         description: 'svn username',
         default: '',
         type: 'string'
     })
-    .option('argv.svnOptionsPassword', {
+    .option('svnOptionsPassword', {
         description: 'svn password',
+        default: '',
+        type: 'string'
+    })
+    .option('jiraUsername', {
+        description: 'jira username',
+        default: '',
+        type: 'string'
+    })
+    .option('jiraPassword', {
+        description: 'jira password',
         default: '',
         type: 'string'
     })
@@ -123,6 +133,8 @@ const svnUltimate = require('node-svn-ultimate')
 const util = require('util')
 const { exec } = require("child_process");
 const ps = require('ps-node');
+const jira = require('./jira');
+
 let profile;
 
 const svnInfoPromise = util.promisify(svnUltimate.commands.info)
@@ -165,10 +177,12 @@ oAppContext.name = pjson.name;
 oAppContext.descriptiveName = pjson.descriptivename;
 app = oAppContext.app;
 const workingCopyFolder = getWorkingCopyFolder(oAppContext);
-const timestampStart = new Date().toISOString().replaceAll('T', '').replaceAll('-', '').replaceAll(':', '').substring(0, 14)
+//const timestampStart = new Date().toISOString().replaceAll('T', '').replaceAll('-', '').replaceAll(':', '').substring(0, 14)
+let timestampStart=''; //set in prequal;
 
 clear();
 prequal();
+
 
 async function prequal() {
 
@@ -183,6 +197,7 @@ async function prequal() {
     //svn context
     const oSVNInfo = await getSVNContext(app, workingCopyFolder);
 
+    timestampStart = oSVNInfo.svnApp.toLowerCase()+'_'+oSVNInfo.repo+'_'+oSVNInfo.angloSVNPath.replaceAll('.','_');
 
     if (isFirstTimeUse) {
         renderTitle();
@@ -213,6 +228,20 @@ async function prequal() {
                 default: argv.svnOptionsPassword,
                 message: "SVN: Please provide your SVN password. ",
                 when: (answers) => answers.svnOptionsUsername && (answers.autoSwitch || answers.autoUpdate)
+            },
+            {
+                type: "input",
+                name: "jiraUsername",
+                default: argv.jiraUsername,
+                message: "Jira: Provide your JIRA user name.",
+                when: (answers) => argv.enableJiraIntegration
+            },
+            {
+                type: "input",
+                name: "jiraPassword",
+                default: argv.svnOptionsPassword,
+                message: "Jira: Please provide your JIRA password. ",
+                when: (answers) => argv.enableJiraIntegration && answers.jiraUsername
             },
             {
                 type: "confirm",
@@ -445,9 +474,14 @@ async function main(profile, oSVNInfo) {
                         key: name,
                         path: decodeURI(path),
                         type: 'external',
+                        isCoreComponent: !name.toLowerCase().includes('interface def'),
+                        isInterfaceDefinition: name.toLowerCase().includes('interface def'),
                         isSpecific: name.toLowerCase().includes('specific'),
                         isDomainSpecific: name.toLowerCase().startsWith('dsc'),
-                        isSolutionComponent: name.toLowerCase().startsWith('sc')
+                        isSolutionComponent: name.toLowerCase().startsWith('sc'),
+                        isTagged: decodeURI(path).toLocaleLowerCase().includes('/tags/'),
+                        isBranched: decodeURI(path).toLocaleLowerCase().includes('/branches/'),
+                        isTrunk: decodeURI(path).toLocaleLowerCase().includes('/trunk/')
                     })
                 };
             });
@@ -467,6 +501,9 @@ async function main(profile, oSVNInfo) {
                 entry.isDomainSpecific = entry.key.toLowerCase().startsWith('dsc');
                 entry.isSolutionComponent = entry.key.toLowerCase().startsWith('sc');
                 entry.path = svnAndApp + repo + '/' + angloSVNPath + '/' + entry.key;
+                isTagged = decodeURI(entry.path).toLocaleLowerCase().includes('/tags/');
+                isBranched = decodeURI(entry.path).toLocaleLowerCase().includes('/branches/');
+                isTrunk = decodeURI(entry.path).toLocaleLowerCase().includes('/trunk/');
             });
             let arrInternals = svn_internals.list.entry;
             if (argv.writeJsonFiles) {
@@ -806,7 +843,7 @@ async function main(profile, oSVNInfo) {
                     }
                     //create a jira tag report for each project
                     if (argv.tagReport) {
-                        if (entry.type === 'external') {
+                        if (entry.type === 'external' && entry.isCoreComponent) {
                             if (entry.path.includes('tag')) {
 
                                 //get list of tags of this external
@@ -825,16 +862,16 @@ async function main(profile, oSVNInfo) {
                                         var indexOfPreviousTag = indexOfCurrentTag
                                     }
                                     var previousTag = lsTags.list.entry[indexOfPreviousTag].name;
-                                    var dateOfpreviousTag = lsTags.list.entry[indexOfPreviousTag].commit.date.split("T")[0]; //short date format
+                                    var dateOfPreviousTag = lsTags.list.entry[indexOfPreviousTag].commit.date.split("T")[0]; //short date format
                                     var dateOfCurrentTag = lsTags.list.entry[indexOfCurrentTag].commit.date.split("T")[0]; //short date format
                                 } else {
                                     // current tag is the first tag
                                     var previousTag = lsTags.list.entry.name;
-                                    var dateOfpreviousTag = lsTags.list.entry.commit.date.split("T")[0]; //short date format
+                                    var dateOfPreviousTag = lsTags.list.entry.commit.date.split("T")[0]; //short date format
                                     var dateOfCurrentTag = new Date(Date.now()).toISOString().split('T')[0]; //short date format     
                                 }
                                 const cloneSvnOptions = JSON.parse(JSON.stringify(svnOptions));
-                                cloneSvnOptions.revision = `{${dateOfpreviousTag}}:{${dateOfCurrentTag}}` // '{2022-08-19}'+':'+'{2022-09-21}';
+                                cloneSvnOptions.revision = `{${dateOfPreviousTag}}:{${dateOfCurrentTag}}` // '{2022-08-19}'+':'+'{2022-09-21}';
                                 const logList = await svnLogPromise(dirWithQuotedProjectName, cloneSvnOptions);
                                 if (logList.logentry && logList.logentry.length > 0) {
                                     var logListEntries = logList.logentry
@@ -845,21 +882,70 @@ async function main(profile, oSVNInfo) {
                                     let arrProjectJiraCollection = [];
                                     for await (const jiraEntry of logListEntries) {
                                         //add item only if it is not in the collection already
-                                        var itemToAdd = jiraEntry.msg.match(regExJira).toString();
-                                        if (arrProjectJiraCollection.indexOf(itemToAdd) === -1) arrProjectJiraCollection.push(jiraEntry.msg.match(regExJira).toString());
+                                        var jiraIssueNumber = jiraEntry.msg.match(regExJira).toString().trim();
+                                        var jiraProject = jiraIssueNumber.substring(0, jiraIssueNumber.indexOf('-'));;
+                                        if (arrProjectJiraCollection.indexOf(jiraIssueNumber) === -1) {
+                                            var commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace(`https://jira.bearingpointcaribbean.com/browse/`, '').trim()
+                                            //determine version name and set versio name in Jira. Maybe add version to jira.
+                                            var fixVersionName = entry.key + ' ' + currentTag;
+                                            //jira.updateJiraIssueFixVersion(jiraIssueNumber,fixVersionName);
+
+                                            var testJira = require('./jira.js');
+                                            var username = profile.jiraUsername;
+                                            var password = profile.jiraPassword;;
+                                            testJira.jira_init(username, password, baseURL);
+                                            //get available project fix versions
+                                            var url = `https://jira.bearingpointcaribbean.com/rest/api/latest/project/${jiraProject}/versions`
+                                            //availableFixVersions = await testJira.jiraGet(username,password,url);
+                                            try {
+                                                theIssue = await testJira.getJiraIssue(jiraIssueNumber);
+                                                var issueSummary = theIssue.fields.summary;
+                                                var issueStatus = theIssue.fields.status.name;
+                                                var currentFixVersions = theIssue.fields.fixVersions
+
+                                            } catch (error) {
+                                                //console.dir('error: getJiraIssue:', jiraIssueNumber)
+                                                var issueSummary = 'could not be retrieved due to error';
+                                                var issueStatus = 'could not be retrieved due to error'
+                                                var currentFixVersions = [];
+                                            }
+
+                                            arrProjectJiraCollection.push(
+                                                {
+                                                    jiraIssueNumber: jiraIssueNumber,
+                                                    jiraIssueDescription: issueSummary,
+                                                    issueStatus,
+                                                    commitMessages: [],
+                                                    //currentFixVersions,
+                                                    potentialFixVersionName: fixVersionName,
+                                                    // availableFixVersions: availableFixVersions,
+                                                    //curl: `curl --location --request PUT 'https://jira.bearingpointcaribbean.com/rest/api/latest/issue/${jiraEntry.msg.match(regExJira).toString()}' --header 'Authorization: ${'Basic ' + Buffer.from(argv.jiraUsername + ":" + argv.jiraPassword, 'binary').toString('base64')} --header 'Content-Type: application/json' --data-raw '{ \"update\": { \"fixVersions\": [{ \"set\": [{ \"name\": \"${entry.key + ' ' + currentTag}\" }]
+                                                    //>>  }] } }'`
+                                                }
+                                            );
+                                            //add commit message to empty array
+                                            arrProjectJiraCollection[arrProjectJiraCollection.length - 1].commitMessages.push(commitMessageString);
+                                        } else {
+                                            //add commit msg to appropriate issue issue object
+                                            var indexOfExistingJiraIssue = arrProjectJiraCollection.findIndex(j => j.jiraIssueNumber === jiraEntry.msg.match(regExJira).toString());
+                                            arrProjectJiraCollection[indexOfExistingJiraIssue].commitMessages.push(commitMessageString)
+                                        };
                                     }
                                     //sort jira issue alphabetically
                                     arrProjectJiraCollection.sort();
                                     arrTagReportCollection.push({
                                         currentTag: currentTag,
+                                        dateOfCurrentTag: dateOfCurrentTag,
                                         previousTag: previousTag,
-                                        dateOfpreviousTag: dateOfpreviousTag,
+                                        dateOfPreviousTag: dateOfPreviousTag,
                                         component: entry.key,
                                         jiraIssues: arrProjectJiraCollection
 
                                     });
                                     logThisLine('[T]', 'green');
-                                    //console.table(arrTagReportCollection);
+                                    //write (append to new or existing file)
+                                    var filename = workingCopyFolder + "tagreport_" + timestampStart + ".json";
+                                    fs.writeFileSync(filename, JSON.stringify(arrTagReportCollection, null, 2));
                                 } else logThisLine('[T]', 'white');
 
                             }
@@ -952,8 +1038,10 @@ async function main(profile, oSVNInfo) {
         }
         if (argv.tagReport && arrTagReportCollection.length > 0) {
             var filename = workingCopyFolder + "tagreport_" + timestampStart + ".json";
-            fs.writeFileSync(filename, JSON.stringify(arrTagReportCollection, null, 2));
-            logNewLine(`Tag report has been stored as ${filename}. It contains ${arrTagReportCollection.length} projects and ${arrTagReportCollection.length} issues`, 'gray');
+            issueCount = arrTagReportCollection.map(a => a.jiraIssues.length).reduce((a, b) => a + b)
+            if (arrTagReportCollection && arrTagReportCollection.length > 0 && issueCount && issueCount > 0) {
+                logNewLine(`Tag report has been stored as ${filename}. It contains ${arrTagReportCollection.length} projects and ${arrTagReportCollection.map(a => a.jiraIssues.length).reduce((a, b) => a + b)} issues`, 'gray');
+            }
         }
         showBIRunningWarning(beInformedRunning);
     } catch (error) {
@@ -1183,11 +1271,13 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
     }
     var repo = urlParts[urlParts.length - 3];
     if (angloSVNPath == 'trunk') {
-        svnAndApp = '/' + urlParts[3] + '/'
+        svnAndApp = '/' + urlParts[3] + '/';
+        svnApp = urlParts[4];
     } else {
-        svnAndApp = '/' + urlParts[3] + '/' + urlParts[4] + '/'
+        svnAndApp = '/' + urlParts[3] + '/' + urlParts[4] + '/';
+        svnApp = urlParts[4];        
     }
-
+    var angloClient = svnApp.toLowerCase().replace(app+'_', '');
     var currentVersion = repo + '/' + angloSVNPath
     var baseURL = urlParts.slice(0, 3).join('/') + '/';
     var appRoot = urlParts.slice(0, 5).join('/') + '/';
@@ -1198,6 +1288,8 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
         angloSVNPath: angloSVNPath,
         repo: repo,
         svnAndApp: svnAndApp,
+        svnApp: svnApp,
+        angloClient: angloClient,
         baseURL: baseURL,
         appRoot: appRoot,
         currentVersion: currentVersion,
