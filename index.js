@@ -44,7 +44,7 @@ const argv = yargs
     })
     .option('tagReport', {
         alias: 't',
-        description: 'generate a report for each project',
+        description: 'generate a tag report for each project. Switches off [S],[U],[F] and [C]',
         type: 'boolean'
     })
     .option('forceSVN', {
@@ -144,6 +144,7 @@ const svnSwitchPromise = util.promisify(svnUltimate.commands.switch)
 const svnCleanUpPromise = util.promisify(svnUltimate.commands.cleanup)
 const svnUpdatePromise = util.promisify(svnUltimate.commands.update)
 const svnStatusPromise = util.promisify(svnUltimate.commands.status)
+const svnMergePromise = util.promisify(svnUltimate.commands.merge)
 
 const svnLogPromise = util.promisify(svnUltimate.commands.log)
 const processLookup = util.promisify(ps.lookup)
@@ -178,7 +179,7 @@ oAppContext.descriptiveName = pjson.descriptivename;
 app = oAppContext.app;
 const workingCopyFolder = getWorkingCopyFolder(oAppContext);
 //const timestampStart = new Date().toISOString().replaceAll('T', '').replaceAll('-', '').replaceAll(':', '').substring(0, 14)
-let timestampStart=''; //set in prequal;
+let timestampStart = ''; //set in prequal;
 
 clear();
 prequal();
@@ -197,7 +198,7 @@ async function prequal() {
     //svn context
     const oSVNInfo = await getSVNContext(app, workingCopyFolder);
 
-    timestampStart = oSVNInfo.svnApp.toLowerCase()+'_'+oSVNInfo.repo+'_'+oSVNInfo.angloSVNPath.replaceAll('.','_');
+    timestampStart = oSVNInfo.svnApp.toLowerCase() + '_' + oSVNInfo.repo + '_' + oSVNInfo.angloSVNPath.replaceAll('.', '_');
 
     if (isFirstTimeUse) {
         renderTitle();
@@ -422,6 +423,7 @@ async function main(profile, oSVNInfo) {
         if (argv.flywayValidateOnly) profile.verbose = argv.flywayValidateOnly;
         if (argv.compare && profile.compareSpecificRootFolder) profile.compareSpecific = argv.compare;
         if (argv.verbose) profile.verbose = argv.verbose;
+        if (argv.tagReport) profile.autoSwitch = false, profile.autoUpdate = false, profile.flyway = false, profile.compareSpecific = false, profile.verbose = true;
 
         let arrAll = [];
 
@@ -473,7 +475,7 @@ async function main(profile, oSVNInfo) {
                     arrExternals.push({
                         key: name,
                         path: decodeURI(path),
-                        type: 'external',
+                        isExternal: true,
                         isCoreComponent: !name.toLowerCase().includes('interface def'),
                         isInterfaceDefinition: name.toLowerCase().includes('interface def'),
                         isSpecific: name.toLowerCase().includes('specific'),
@@ -496,7 +498,9 @@ async function main(profile, oSVNInfo) {
                 delete entry.$;
                 delete entry.commit;
                 delete Object.assign(entry, { ['key']: entry['name'] })['name'];
-                entry.type = "internal";
+                entry.isInternal = true;
+                entry.isCoreComponent = false;
+                entry.isInterfaceDefinition = false;
                 entry.isSpecific = entry.key.toLowerCase().includes('specific');
                 entry.isDomainSpecific = entry.key.toLowerCase().startsWith('dsc');
                 entry.isSolutionComponent = entry.key.toLowerCase().startsWith('sc');
@@ -584,15 +588,10 @@ async function main(profile, oSVNInfo) {
         var progressCounter = 1;
 
         const processLookupResultList = await processLookup({ command: 'Be Informed AMS.exe', psargs: app })
-        logNewLine('', 'white')
-        logNewLine('', 'white')
-        console.log('FV debug', processLookupResultList)
-        logNewLine('', 'white')
-        logNewLine('', 'white')
         let beInformedRunning = false;
         processLookupResultList.forEach(function (process) {
             //use -data argument to be more specific in determining when be informed is running
-            if (process && (JSON.stringify(process.arguments).includes('-data') && JSON.stringify(process.arguments).includes(app) || !JSON.stringify(process.arguments).includes('-data')) && !argv.forceSVN) {
+            if (process && (JSON.stringify(process.arguments).toLowerCase().includes('-data') && JSON.stringify(process.arguments).toLowerCase().includes(app.toLowerCase()) || !JSON.stringify(process.arguments).toLowerCase().includes('-data')) && !argv.forceSVN) {
                 beInformedRunning = true
             }
         })
@@ -716,39 +715,27 @@ async function main(profile, oSVNInfo) {
                                 }
                             }
                         } else {
-                            //[U] enabled, but BI is running, so [Ŭ]
-
+                            //[U] enabled, but BI is running, so [Ŭ]. Only incoming updates, not outgoing
                             const svnStatusOptions = JSON.parse(JSON.stringify(svnOptions));
-                            svnStatusOptions.params = ['--show-updates'];
-
-                            const statusList = await svnStatusPromise(dirWithQuotedProjectName, svnStatusOptions)
-                            if (statusList.target.entry && (statusList.target.entry.length > 0 || statusList.target.against)) {
-                                memorable("[Ŭ]", arrSVNPotentialUpdateCollection, entry, statusList, 'yellow')
+                            svnStatusOptions.params = ['--dry-run -r BASE:HEAD ' + dirWithQuotedProjectName];
+                            const mergeList = await svnMergePromise(dirWithQuotedProjectName, svnStatusOptions)
+                            if (mergeList) {
+                                memorable("[Ŭ]", arrSVNPotentialUpdateCollection, entry, mergeList, 'yellow')
                                 if (profile.verbose) {
                                     logNewLine('', 'gray');
                                     logNewLine('', 'gray');
-                                    if (statusList.target.against) {
-                                        logNewLine(`potential update from revision ${statusList.target.entry["wc-status"].commit.$.revision} to ${statusList.target.against.$.revision}`, 'yellow');
-                                    }
-                                    if (statusList.target.entry && (statusList.target.entry.length > 0)) {
-                                        for (const entry of statusList.target.entry) {
-                                            var fullLine = entry.$.path;
-                                            logNewLine(right(fullLine, path.normalize(fullLine.toLowerCase()).replace(path.normalize(workingCopyFolder.toLowerCase()), '').length), 'yellow');
-                                        }
-                                    }
+                                    logNewLine(mergeList.replace(/^--- Merging .*/m, ''), 'yellow');
                                 }
                             } else {
                                 //[Ŭ] no action needed
                                 logThisLine("[Ŭ]", 'gray');
                             }
-
                         }
                     } else {
                         //[U] not enabled
                     }
                     //perform db migrations if flyway enabled and current project has a migration folder (component or general)
                     if (profile.flyway) {
-
                         //set default flyway action to migrate
                         var flywayAction = 'migrate';
                         //override default when command line option flywayValidateOnly is set
@@ -797,7 +784,7 @@ async function main(profile, oSVNInfo) {
 
                     //compare specific folder with reference specific
                     if (profile.compareSpecific && entry.isSpecific) {
-                        if (entry.type === 'internal' && ((AppIsFullyComparable(oAppContext, profile) && entry.isDomainSpecific) || entry.isSolutionComponent)) {
+                        if (entry.isInternal && ((AppIsFullyComparable(oAppContext, profile) && entry.isDomainSpecific) || entry.isSolutionComponent)) {
                             var leftSideFolder = dir;
                             var rightSideFolder = leftSideFolder.replace(workingCopyFolder, profile.compareSpecificRootFolder.toLowerCase());
 
@@ -829,8 +816,8 @@ async function main(profile, oSVNInfo) {
                     }
                     //perform deployment check on project
                     if (argv.deploymentCheck) {
-                        if (entry.type === 'external') {
-                            if (entry.path.includes('tag')) {
+                        if (entry.isExternal) {
+                            if (entry.isTagged) {
                                 logThisLine('[D]', 'green');
                             } else {
                                 memorable('[D]', arrDeploymentCheckCollection, entry, entry.key, 'red');
@@ -843,118 +830,176 @@ async function main(profile, oSVNInfo) {
                     }
                     //create a jira tag report for each project
                     if (argv.tagReport) {
-                        if (entry.type === 'external' && entry.isCoreComponent) {
-                            if (entry.path.includes('tag')) {
 
-                                //get list of tags of this external
-                                var str = entry.path;
-                                var strSplittedArray = str.split('/');
-                                var tagIndex = strSplittedArray.indexOf('tags');
-                                var currentTag = strSplittedArray[tagIndex + 1];
-                                var sListURL = baseURL + encodeURIComponent(str.substring(0, str.indexOf('tags'))) + 'tags';
-                                const lsTags = await svnListPromise(sListURL);
-                                if (Array.isArray(lsTags.list.entry)) {
-                                    // current tag has predecessors
-                                    var indexOfCurrentTag = lsTags.list.entry.findIndex(q => q.name === currentTag);
-                                    if (indexOfCurrentTag > 0) {
-                                        var indexOfPreviousTag = indexOfCurrentTag - 1
-                                    } else {
-                                        var indexOfPreviousTag = indexOfCurrentTag
-                                    }
-                                    var previousTag = lsTags.list.entry[indexOfPreviousTag].name;
-                                    var dateOfPreviousTag = lsTags.list.entry[indexOfPreviousTag].commit.date.split("T")[0]; //short date format
-                                    var dateOfCurrentTag = lsTags.list.entry[indexOfCurrentTag].commit.date.split("T")[0]; //short date format
-                                } else {
-                                    // current tag is the first tag
-                                    var previousTag = lsTags.list.entry.name;
-                                    var dateOfPreviousTag = lsTags.list.entry.commit.date.split("T")[0]; //short date format
-                                    var dateOfCurrentTag = new Date(Date.now()).toISOString().split('T')[0]; //short date format     
-                                }
-                                const cloneSvnOptions = JSON.parse(JSON.stringify(svnOptions));
-                                cloneSvnOptions.revision = `{${dateOfPreviousTag}}:{${dateOfCurrentTag}}` // '{2022-08-19}'+':'+'{2022-09-21}';
-                                const logList = await svnLogPromise(dirWithQuotedProjectName, cloneSvnOptions);
-                                if (logList.logentry && logList.logentry.length > 0) {
-                                    var logListEntries = logList.logentry
-                                    //filter the log entries to have only commit messages with JIRA numbers
-                                    regExJira = new RegExp('[A-Z]+-[0-9]*', 'g');
-                                    logListEntries = logListEntries.filter(l => l.author !== 'continuousdelivery' && regExJira.test(l.msg));
-                                    //add selected entries in an custom array
-                                    let arrProjectJiraCollection = [];
-                                    for await (const jiraEntry of logListEntries) {
-                                        //add item only if it is not in the collection already
-                                        var jiraIssueNumber = jiraEntry.msg.match(regExJira).toString().trim();
-                                        var jiraProject = jiraIssueNumber.substring(0, jiraIssueNumber.indexOf('-'));;
-                                        if (arrProjectJiraCollection.indexOf(jiraIssueNumber) === -1) {
-                                            var commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace(`https://jira.bearingpointcaribbean.com/browse/`, '').trim()
-                                            //determine version name and set versio name in Jira. Maybe add version to jira.
-                                            var fixVersionName = entry.key + ' ' + currentTag;
-                                            //jira.updateJiraIssueFixVersion(jiraIssueNumber,fixVersionName);
+                        var testJira = require('./jira.js');
 
-                                            var testJira = require('./jira.js');
-                                            var username = profile.jiraUsername;
-                                            var password = profile.jiraPassword;;
-                                            testJira.jira_init(username, password, baseURL);
-                                            //get available project fix versions
-                                            var url = `https://jira.bearingpointcaribbean.com/rest/api/latest/project/${jiraProject}/versions`
-                                            //availableFixVersions = await testJira.jiraGet(username,password,url);
-                                            try {
-                                                theIssue = await testJira.getJiraIssue(jiraIssueNumber);
-                                                var issueSummary = theIssue.fields.summary;
-                                                var issueStatus = theIssue.fields.status.name;
-                                                var currentFixVersions = theIssue.fields.fixVersions
+                        if (entry.isCoreComponent && entry.isTrunk) { //entry.isExternal &&
 
-                                            } catch (error) {
-                                                //console.dir('error: getJiraIssue:', jiraIssueNumber)
-                                                var issueSummary = 'could not be retrieved due to error';
-                                                var issueStatus = 'could not be retrieved due to error'
-                                                var currentFixVersions = [];
-                                            }
+                            logThisLine('[T]', 'green');
 
-                                            arrProjectJiraCollection.push(
-                                                {
-                                                    jiraIssueNumber: jiraIssueNumber,
-                                                    jiraIssueDescription: issueSummary,
-                                                    issueStatus,
-                                                    commitMessages: [],
-                                                    //currentFixVersions,
-                                                    potentialFixVersionName: fixVersionName,
-                                                    // availableFixVersions: availableFixVersions,
-                                                    //curl: `curl --location --request PUT 'https://jira.bearingpointcaribbean.com/rest/api/latest/issue/${jiraEntry.msg.match(regExJira).toString()}' --header 'Authorization: ${'Basic ' + Buffer.from(argv.jiraUsername + ":" + argv.jiraPassword, 'binary').toString('base64')} --header 'Content-Type: application/json' --data-raw '{ \"update\": { \"fixVersions\": [{ \"set\": [{ \"name\": \"${entry.key + ' ' + currentTag}\" }]
-                                                    //>>  }] } }'`
-                                                }
-                                            );
-                                            //add commit message to empty array
-                                            arrProjectJiraCollection[arrProjectJiraCollection.length - 1].commitMessages.push(commitMessageString);
-                                        } else {
-                                            //add commit msg to appropriate issue issue object
-                                            var indexOfExistingJiraIssue = arrProjectJiraCollection.findIndex(j => j.jiraIssueNumber === jiraEntry.msg.match(regExJira).toString());
-                                            arrProjectJiraCollection[indexOfExistingJiraIssue].commitMessages.push(commitMessageString)
-                                        };
-                                    }
-                                    //sort jira issue alphabetically
-                                    arrProjectJiraCollection.sort();
-                                    arrTagReportCollection.push({
-                                        currentTag: currentTag,
-                                        dateOfCurrentTag: dateOfCurrentTag,
-                                        previousTag: previousTag,
-                                        dateOfPreviousTag: dateOfPreviousTag,
-                                        component: entry.key,
-                                        jiraIssues: arrProjectJiraCollection
+                            //if (entry.path.includes('tag')) {
 
-                                    });
-                                    logThisLine('[T]', 'green');
-                                    //write (append to new or existing file)
-                                    var filename = workingCopyFolder + "tagreport_" + timestampStart + ".json";
-                                    fs.writeFileSync(filename, JSON.stringify(arrTagReportCollection, null, 2));
-                                } else logThisLine('[T]', 'white');
+                            
 
+                            //get list of tags of this external
+                            var str = entry.path;
+                            var strSplittedArray = str.split('/');
+                            var tagIndex = strSplittedArray.indexOf('tags');
+                            var currentTag = strSplittedArray[tagIndex + 1];
+                            var sListURL;
+                            if(entry.isTagged){
+                                sListURL = baseURL + encodeURIComponent(str.substring(0, str.indexOf('tags'))) + 'tags';
+                            } else {
+                                sListURL = baseURL + encodeURIComponent(str.substring(0, str.indexOf('trunk'))) + 'tags';
                             }
 
+                            //make new tag: and for that: determine new tag name. In meantime, treat last tag as new tag
+
+                            //get list of tags of this entry
+                            const lsTags = await svnListPromise(sListURL);
+
+                            arrTags = lsTags.list.entry;
+                            //properly order semantic tags
+                            if(arrTags.length>1){
+                                arrTagsSorted = arrTags.map(a => a.name.replace(/\d+/g, n => +n + 100000)).sort().map(a => a.replace(/\d+/g, n => +n - 100000));
+                            } else {
+                                //nothing to be sorted since there's only 1
+                                arrTagsSorted = arrTags
+                            }
+
+
+                            if (Array.isArray(arrTagsSorted)) {
+
+                                // arrTagsSorted
+                                var arrTagsSortedIndexOfCurrentTag = arrTagsSorted.findIndex(q => q === currentTag);
+                                if (arrTagsSortedIndexOfCurrentTag > 0) {
+                                    var arrTagsSortedIndexOfPreviousTag = arrTagsSortedIndexOfCurrentTag - 1
+                                } else {
+                                    var arrTagsSortedIndexOfPreviousTag = arrTagsSortedIndexOfCurrentTag
+                                }
+                                var arrTagsSortedPreviousTag = arrTagsSorted[arrTagsSortedIndexOfPreviousTag];
+
+                                // arrTags
+                                var arrTagsIndexOfCurrentTag = arrTags.findIndex(q => q.name === currentTag);
+                                if (arrTagsIndexOfCurrentTag > 0) {
+                                    var arrTagsIndexOfPreviousTag = arrTags.findIndex(q => q.name === arrTagsSortedPreviousTag);
+                                } else {
+                                    var arrTagsIndexOfPreviousTag = arrTagsIndexOfCurrentTag
+                                }
+                                var previousTag = arrTags[arrTagsIndexOfPreviousTag].name;
+                                var dateOfPreviousTag = arrTags[arrTagsIndexOfPreviousTag].commit.date.split("T")[0]; //short date format
+                                var dateOfCurrentTag = arrTags[arrTagsIndexOfCurrentTag].commit.date.split("T")[0]; //short date format
+                                var revisionOfCurrentTag = arrTags[arrTagsIndexOfCurrentTag].commit.$.revision
+                                var revisionOfPreviousTag = arrTags[arrTagsIndexOfPreviousTag].commit.$.revision
+                            } else {
+                                // current tag is the first tag
+                                var previousTag = arrTags.name;
+                                var dateOfPreviousTag = arrTags.commit.date.split("T")[0]; //short date format
+                                var dateOfCurrentTag = new Date(Date.now()).toISOString().split('T')[0]; //short date format     
+                                var revisionOfCurrentTag = arrTags.commit.$.revision
+                                var revisionOfPreviousTag = 0 //?? arrTags.commit.$.revision
+                            }
+                            var derivedNewTagNumber = await getDerivedNewTagNumber(dirWithQuotedProjectName, revisionOfCurrentTag, revisionOfPreviousTag, currentTag)
+                            if(profile.verbose) {
+                                logNewLine('', 'gray');
+                                logNewLine('', 'gray');
+                                logNewLine(`${derivedNewTagNumber.major}: ${entry.key} from ${currentTag} to ${derivedNewTagNumber.derivedNewTagNumber}`,"yellow");
+                            }
+                            const cloneSvnOptions = JSON.parse(JSON.stringify(svnOptions));
+                            cloneSvnOptions.revision = `{${dateOfPreviousTag}}:{${dateOfCurrentTag}}` // '{2022-08-19}'+':'+'{2022-09-21}';
+                            const logList = await svnLogPromise(dirWithQuotedProjectName, cloneSvnOptions);
+                            if (logList.logentry && logList.logentry.length > 0) {
+                                var logListEntries = logList.logentry
+                                //filter the log entries to have only commit messages with JIRA numbers
+                                regExJira = new RegExp('[A-Z]+-[0-9]*', 'g');
+                                logListEntries = logListEntries.filter(l => l.author !== 'continuousdelivery' && regExJira.test(l.msg));
+                                //add selected entries in an custom array
+                                let arrProjectJiraCollection = [];
+                                //keep unique jira projects in separate array
+                                let arrJiraProjects = [];
+                                for await (const jiraEntry of logListEntries) {
+                                    //add item only if it is not in the collection already
+                                    var jiraIssueNumber = jiraEntry.msg.match(regExJira).toString().trim();
+                                    var jiraProject = jiraIssueNumber.substring(0, jiraIssueNumber.indexOf('-'));;
+                                    var fixVersionName = entry.key + ' ' + currentTag;
+
+                                    //add unique jira project to array
+                                    if (arrJiraProjects.indexOf(jiraProject) === -1) {
+                                        arrJiraProjects.push(jiraProject);
+                                        if (jiraProject.toLowerCase() === 'mbsai') {
+                                            testJira.addVersionIfNotExists(profile.jiraUsername, profile.jiraPassword, jiraProject, 'fixVersionName');
+                                        }
+                                        //addVersionIfNotExists(jiraProject, fixVersionName);
+                                    }
+                                    if (arrProjectJiraCollection.indexOf(jiraIssueNumber) === -1) {
+                                        var commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace(`https://jira.bearingpointcaribbean.com/browse/`, '').trim()
+                                        //determine version name and set versio name in Jira. Maybe add version to jira.
+
+                                        //jira.updateJiraIssueFixVersion(jiraIssueNumber,fixVersionName);
+
+                                        //get available project fix versions
+                                        //var url = `https://jira.bearingpointcaribbean.com/rest/api/latest/project/${jiraProject}/versions`
+                                        //availableFixVersions = await testJira.jiraGet(profile.jiraUsername, profile.jiraPassword,url);
+                                        try {
+                                            theIssue = await testJira.getJiraIssue(profile.jiraUsername, profile.jiraPassword, jiraIssueNumber);
+                                            var issueSummary = theIssue.fields.summary;
+                                            var issueStatus = theIssue.fields.status.name;
+                                            var currentFixVersions = theIssue.fields.fixVersions
+
+                                        } catch (error) {
+                                            //console.dir('error: getJiraIssue:', jiraIssueNumber)
+                                            var issueSummary = 'could not be retrieved due to error';
+                                            var issueStatus = 'could not be retrieved due to error'
+                                            var currentFixVersions = [];
+                                        }
+                                        arrProjectJiraCollection.push(
+                                            {
+                                                jiraIssueNumber: jiraIssueNumber,
+                                                jiraIssueDescription: issueSummary,
+                                                issueStatus,
+                                                commitMessages: [],
+                                                currentFixVersions,
+                                                potentialFixVersionName: fixVersionName,
+                                                // availableFixVersions: availableFixVersions,
+                                                //curl: `curl --location --request PUT 'https://jira.bearingpointcaribbean.com/rest/api/latest/issue/${jiraEntry.msg.match(regExJira).toString()}' --header 'Authorization: ${'Basic ' + Buffer.from(argv.jiraUsername + ":" + argv.jiraPassword, 'binary').toString('base64')} --header 'Content-Type: application/json' --data-raw '{ \"update\": { \"fixVersions\": [{ \"set\": [{ \"name\": \"${entry.key + ' ' + currentTag}\" }]
+                                                //>>  }] } }'`
+                                            }
+                                        );
+                                        //add commit message to empty array
+                                        arrProjectJiraCollection[arrProjectJiraCollection.length - 1].commitMessages.push(commitMessageString);
+                                    } else {
+                                        //add commit msg to appropriate issue issue object
+                                        var indexOfExistingJiraIssue = arrProjectJiraCollection.findIndex(j => j.jiraIssueNumber === jiraEntry.msg.match(regExJira).toString());
+                                        arrProjectJiraCollection[indexOfExistingJiraIssue].commitMessages.push(commitMessageString)
+                                    };
+                                }
+                                //sort jira issue alphabetically
+                                arrProjectJiraCollection.sort();
+                                arrTagReportCollection.push({
+                                    component: entry.key,
+                                    currentTag: currentTag,
+                                    dateOfCurrentTag: dateOfCurrentTag,
+                                    revisionOfCurrentTag: revisionOfCurrentTag,
+                                    previousTag: previousTag,
+                                    dateOfPreviousTag: dateOfPreviousTag,
+                                    revisionOfPreviousTag: revisionOfPreviousTag,
+                                    derivedNewTagNumber: derivedNewTagNumber,
+                                    derivedNewTagName: entry.key + ' ' + derivedNewTagNumber,
+                                    jiraProjects: arrJiraProjects,
+                                    jiraIssues: arrProjectJiraCollection
+
+                                });                                
+                                //write (append to new or existing file)
+                                var filename = workingCopyFolder + "tagreport_" + timestampStart + ".json";
+                                fs.writeFileSync(filename, JSON.stringify(arrTagReportCollection, null, 2));
+                            } else logThisLine('[T]', 'white');
+                        } else {
+                            logThisLine('[T]', 'gray');
                         }
+                        //}
                     } else {
                         // tagReport not enabled
                     }
-
                 } else {
                     memorable('[M]', arrMissingCollection, entry, baseURL + entry.path.replace(/^\//, '').key, 'green');
 
@@ -1275,9 +1320,9 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
         svnApp = urlParts[4];
     } else {
         svnAndApp = '/' + urlParts[3] + '/' + urlParts[4] + '/';
-        svnApp = urlParts[4];        
+        svnApp = urlParts[4];
     }
-    var angloClient = svnApp.toLowerCase().replace(app+'_', '');
+    var angloClient = svnApp.toLowerCase().replace(app + '_', '');
     var currentVersion = repo + '/' + angloSVNPath
     var baseURL = urlParts.slice(0, 3).join('/') + '/';
     var appRoot = urlParts.slice(0, 5).join('/') + '/';
@@ -1397,7 +1442,9 @@ function showLegend() {
 function showBIRunningWarning(beInformedRunning) {
     if (beInformedRunning) {
         logNewLine('', 'red');
-        logNewLine('Warning: Be Informed seems to be running ' + (app).toLowerCase() + '! Only svn switch and update "detection" possible, indicated by [Š]/[Ŭ]', 'red');
+        if (profile.autoSwitch || profile.autoUpdate) {
+            logNewLine('Warning: Be Informed seems to be running ' + (app).toLowerCase() + '! Regarding svn [U]pdate and [S]witch: Only "detection" possible, indicated by [Š]/[Ŭ]', 'red');
+        }
     }
 }
 
@@ -1433,4 +1480,38 @@ async function getRemoteAppVersion() {
         console.dir('Errors occurred:', error);//chalk.redBright(
         beep(3);
     }
+}
+
+async function getDerivedNewTagNumber(workingCopyFolder, revisionOfCurrentTag, revisionOfPreviousTag, currentVersion) {
+    revisionOfPreviousTag = (revisionOfCurrentTag === revisionOfPreviousTag) ? revisionOfPreviousTag - 1 : revisionOfPreviousTag;
+    const e = require("child_process");
+    const execPromise = util.promisify(e.exec);
+    //    const oldTagUrl = componentUrl+'/'+previousTag;
+    //    const newTagUrl = componentUrl+'/'+currentTag;
+    const execCommand = `svn diff ${workingCopyFolder} --summarize -r ${revisionOfPreviousTag}:${revisionOfCurrentTag}`
+
+    try {
+        const execPromiseResult = await execPromise(execCommand);
+        //default: MutationRecord, if versioned migrations or changes in interfaces
+        bMajor = (execPromiseResult.stdout.toLowerCase().includes('versioned') || execPromiseResult.stdout.toLowerCase().includes('interface'))
+        currentVersionElements = currentVersion.split('.');
+        if(bMajor) {
+            positionToRaise = currentVersionElements.length - 2
+            currentVersionElements[currentVersionElements.length - 1] = 0
+        } else {
+            positionToRaise = currentVersionElements.length - 1
+        }
+        currentVersionElements[positionToRaise] = parseInt(currentVersionElements[positionToRaise]) + 1; 
+        return  {
+                    derivedNewTagNumber: currentVersionElements.join('.'),
+                    major: bMajor                    
+                }
+    } catch (error) {
+        console.dir('Error in getDerivedNewTagNumber: ', execCommand);//chalk.redBright(
+        beep(3);
+    }
+
+
+
+
 }
