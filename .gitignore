@@ -4,3 +4,5 @@
 /t.js
 /include copy.json
 node_modules/
+/jiratest.js
+/tag*.json
