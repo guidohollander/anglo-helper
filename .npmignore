@@ -6,3 +6,5 @@ node_modules/
 /t.js
 /jiratest.js
 /tag*.json
+/tag*.json
+/*.xlsx

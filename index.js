@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+let arrOverallJiraCollection = [];
 
 // handle arguments
 const yargs = require('yargs');
@@ -198,7 +199,7 @@ async function prequal() {
     //svn context
     const oSVNInfo = await getSVNContext(app, workingCopyFolder);
 
-    timestampStart = oSVNInfo.svnApp.toLowerCase() + '_' + oSVNInfo.repo + '_' + oSVNInfo.angloSVNPath.replaceAll('.', '_');
+    timestampStart = oSVNInfo.svnApp.toLowerCase() + '_' + oSVNInfo.angloSVNPath.replaceAll('.', '_');
 
     if (isFirstTimeUse) {
         renderTitle();
@@ -831,167 +832,255 @@ async function main(profile, oSVNInfo) {
                     //create a jira tag report for each project
                     if (argv.tagReport) {
 
+                        
                         var testJira = require('./jira.js');
 
                         if (entry.isCoreComponent && entry.isTrunk) { //entry.isExternal &&
-
-                            logThisLine('[T]', 'green');
-
-                            //if (entry.path.includes('tag')) {
-
-                            
-
                             //get list of tags of this external
                             var str = entry.path;
                             var strSplittedArray = str.split('/');
                             var tagIndex = strSplittedArray.indexOf('tags');
-                            var currentTag = strSplittedArray[tagIndex + 1];
+                            //var currentTag = strSplittedArray[tagIndex + 1];
                             var sListURL;
-                            if(entry.isTagged){
+                            if (entry.isTagged) {
                                 sListURL = baseURL + encodeURIComponent(str.substring(0, str.indexOf('tags'))) + 'tags';
                             } else {
                                 sListURL = baseURL + encodeURIComponent(str.substring(0, str.indexOf('trunk'))) + 'tags';
                             }
-
                             //make new tag: and for that: determine new tag name. In meantime, treat last tag as new tag
 
                             //get list of tags of this entry
                             const lsTags = await svnListPromise(sListURL);
+                            arrTags = lsTags.list.entry.filter(item => !isNaN(item.name.charAt(0)));
 
-                            arrTags = lsTags.list.entry;
                             //properly order semantic tags
-                            if(arrTags.length>1){
+                            if (arrTags.length > 1) {
                                 arrTagsSorted = arrTags.map(a => a.name.replace(/\d+/g, n => +n + 100000)).sort().map(a => a.replace(/\d+/g, n => +n - 100000));
                             } else {
                                 //nothing to be sorted since there's only 1
                                 arrTagsSorted = arrTags
                             }
 
-
                             if (Array.isArray(arrTagsSorted)) {
 
-                                // arrTagsSorted
-                                var arrTagsSortedIndexOfCurrentTag = arrTagsSorted.findIndex(q => q === currentTag);
-                                if (arrTagsSortedIndexOfCurrentTag > 0) {
-                                    var arrTagsSortedIndexOfPreviousTag = arrTagsSortedIndexOfCurrentTag - 1
-                                } else {
-                                    var arrTagsSortedIndexOfPreviousTag = arrTagsSortedIndexOfCurrentTag
-                                }
-                                var arrTagsSortedPreviousTag = arrTagsSorted[arrTagsSortedIndexOfPreviousTag];
+                                var lastTagNumber = arrTagsSorted[arrTagsSorted.length - 1];
+                                var lastTagObject = arrTags.find(q => q.name === lastTagNumber);
+                                var lastTagRevisionNumber = lastTagObject.commit.$.revision
+                                // // arrTagsSorted                                 
+                                // var arrTagsSortedIndexOfCurrentTag = arrTagsSorted.findIndex(q => q === currentTag);
+                                // if (arrTagsSortedIndexOfCurrentTag > 0) {
+                                //     var arrTagsSortedIndexOfPreviousTag = arrTagsSortedIndexOfCurrentTag - 1
+                                // } else {
+                                //     var arrTagsSortedIndexOfPreviousTag = arrTagsSortedIndexOfCurrentTag
+                                // }
+                                // var arrTagsSortedPreviousTag = arrTagsSorted[arrTagsSortedIndexOfPreviousTag];
 
-                                // arrTags
-                                var arrTagsIndexOfCurrentTag = arrTags.findIndex(q => q.name === currentTag);
-                                if (arrTagsIndexOfCurrentTag > 0) {
-                                    var arrTagsIndexOfPreviousTag = arrTags.findIndex(q => q.name === arrTagsSortedPreviousTag);
-                                } else {
-                                    var arrTagsIndexOfPreviousTag = arrTagsIndexOfCurrentTag
-                                }
-                                var previousTag = arrTags[arrTagsIndexOfPreviousTag].name;
-                                var dateOfPreviousTag = arrTags[arrTagsIndexOfPreviousTag].commit.date.split("T")[0]; //short date format
-                                var dateOfCurrentTag = arrTags[arrTagsIndexOfCurrentTag].commit.date.split("T")[0]; //short date format
-                                var revisionOfCurrentTag = arrTags[arrTagsIndexOfCurrentTag].commit.$.revision
-                                var revisionOfPreviousTag = arrTags[arrTagsIndexOfPreviousTag].commit.$.revision
+                                // // arrTags
+                                // var arrTagsIndexOfCurrentTag = arrTags.findIndex(q => q.name === currentTag);
+                                // if (arrTagsIndexOfCurrentTag > 0) {
+                                //     var arrTagsIndexOfPreviousTag = arrTags.findIndex(q => q.name === arrTagsSortedPreviousTag);
+                                // } else {
+                                //     var arrTagsIndexOfPreviousTag = arrTagsIndexOfCurrentTag
+                                // }
+                                // var previousTag = arrTags[arrTagsIndexOfPreviousTag].name;
+                                // var dateOfPreviousTag = arrTags[arrTagsIndexOfPreviousTag].commit.date.split("T")[0]; //short date format
+                                // var dateOfCurrentTag = arrTags[arrTagsIndexOfCurrentTag].commit.date.split("T")[0]; //short date format
+                                // var revisionOfCurrentTag = arrTags[arrTagsIndexOfCurrentTag].commit.$.revision
+                                // var revisionOfPreviousTag = arrTags[arrTagsIndexOfPreviousTag].commit.$.revision
                             } else {
                                 // current tag is the first tag
-                                var previousTag = arrTags.name;
-                                var dateOfPreviousTag = arrTags.commit.date.split("T")[0]; //short date format
-                                var dateOfCurrentTag = new Date(Date.now()).toISOString().split('T')[0]; //short date format     
-                                var revisionOfCurrentTag = arrTags.commit.$.revision
-                                var revisionOfPreviousTag = 0 //?? arrTags.commit.$.revision
+                                // var previousTag = arrTags.name;
+                                // var dateOfPreviousTag = arrTags.commit.date.split("T")[0]; //short date format
+                                // var dateOfCurrentTag = new Date(Date.now()).toISOString().split('T')[0]; //short date format     
+                                // var revisionOfCurrentTag = arrTags.commit.$.revision
+                                // var revisionOfPreviousTag = 0 //?? arrTags.commit.$.revision
                             }
-                            var derivedNewTagNumber = await getDerivedNewTagNumber(dirWithQuotedProjectName, revisionOfCurrentTag, revisionOfPreviousTag, currentTag)
-                            if(profile.verbose) {
-                                logNewLine('', 'gray');
-                                logNewLine('', 'gray');
-                                logNewLine(`${derivedNewTagNumber.major}: ${entry.key} from ${currentTag} to ${derivedNewTagNumber.derivedNewTagNumber}`,"yellow");
-                            }
+
+
+
+
+                            var bMajorTagNumberIncrease = false; //can be modified below
                             const cloneSvnOptions = JSON.parse(JSON.stringify(svnOptions));
-                            cloneSvnOptions.revision = `{${dateOfPreviousTag}}:{${dateOfCurrentTag}}` // '{2022-08-19}'+':'+'{2022-09-21}';
+                            cloneSvnOptions.revision = `${lastTagRevisionNumber}:HEAD`//:{${dateOfCurrentTag}} --verbose`
+                            cloneSvnOptions.verbose = true
                             const logList = await svnLogPromise(dirWithQuotedProjectName, cloneSvnOptions);
                             if (logList.logentry && logList.logentry.length > 0) {
+                                logThisLine('[T]', 'green');
                                 var logListEntries = logList.logentry
                                 //filter the log entries to have only commit messages with JIRA numbers
-                                regExJira = new RegExp('[A-Z]+-[0-9]*', 'g');
-                                logListEntries = logListEntries.filter(l => l.author !== 'continuousdelivery' && regExJira.test(l.msg));
+                                regExJira = new RegExp('([A-Z][A-Z0-9]+-[0-9]+)', 'g');
+                                logListEntries = logListEntries.filter(l => l.author !== 'continuousdelivery' && regExJira.test(l.msg.toUpperCase()));
                                 //add selected entries in an custom array
                                 let arrProjectJiraCollection = [];
+                                
                                 //keep unique jira projects in separate array
                                 let arrJiraProjects = [];
+                                logNewLine('', 'gray');
                                 for await (const jiraEntry of logListEntries) {
                                     //add item only if it is not in the collection already
-                                    var jiraIssueNumber = jiraEntry.msg.match(regExJira).toString().trim();
-                                    var jiraProject = jiraIssueNumber.substring(0, jiraIssueNumber.indexOf('-'));;
-                                    var fixVersionName = entry.key + ' ' + currentTag;
-
-                                    //add unique jira project to array
-                                    if (arrJiraProjects.indexOf(jiraProject) === -1) {
-                                        arrJiraProjects.push(jiraProject);
-                                        if (jiraProject.toLowerCase() === 'mbsai') {
-                                            testJira.addVersionIfNotExists(profile.jiraUsername, profile.jiraPassword, jiraProject, 'fixVersionName');
+                                    var jiraIssueNumber = jiraEntry.msg.match(regExJira).toString().toUpperCase().trim();
+                                    for (const singularJiraIssueNumber of jiraIssueNumber.split(',')) {
+                                        var triggersMajorTagNumberIncrease = false;
+                                        if (JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('versioned') || JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('interface')) {
+                                            var triggersMajorTagNumberIncrease = true;
+                                            bMajorTagNumberIncrease = true;
                                         }
-                                        //addVersionIfNotExists(jiraProject, fixVersionName);
-                                    }
-                                    if (arrProjectJiraCollection.indexOf(jiraIssueNumber) === -1) {
-                                        var commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace(`https://jira.bearingpointcaribbean.com/browse/`, '').trim()
-                                        //determine version name and set versio name in Jira. Maybe add version to jira.
+                                        //add unique jira issue to object array
+                                        if (arrProjectJiraCollection.findIndex(j => j.jiraIssueNumber === singularJiraIssueNumber) === -1) {
+                                            var commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace(`https://jira.bearingpointcaribbean.com/browse/`, '').trim()
+                                            const listAllJiraAngloProjects = ['AIRD', 'AISSB', 'CONVA', 'IRDM', 'IRD', 'IRDM', 'MOMO', 'MTSSSKN', 'MTS', 'SDES', 'ISD', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB', 'SSBM'];
+                                            if (listAllJiraAngloProjects.includes(singularJiraIssueNumber.split('-')[0])) {
+                                                try {
+                                                    theIssue = await testJira.getJiraIssue(profile.jiraUsername, profile.jiraPassword, singularJiraIssueNumber);
+                                                    var issueSummary = theIssue.fields.summary;
+                                                    var issueStatus = theIssue.fields.status.name;
+                                                    var currentFixVersions = theIssue.fields.fixVersions
+                                                } catch (error) {
+                                                    //console.dir('error: getJiraIssue:', singularJiraIssueNumber)
+                                                    var issueSummary = 'could not be retrieved due to error';
+                                                    var issueStatus = 'could not be retrieved due to error'
+                                                    var currentFixVersions = [];
+                                                }
 
-                                        //jira.updateJiraIssueFixVersion(jiraIssueNumber,fixVersionName);
+                                                const listUnwantedJiraIssueStates = ['Ready for development', 'In test', 'On hold'];
+                                                if (!listUnwantedJiraIssueStates.includes(theIssue.fields.status.name)) {
+                                                //if (theIssue.fields.status.name !== 'Ready for development') {
+                                                    var jiraProject = singularJiraIssueNumber.substring(0, singularJiraIssueNumber.indexOf('-'));;
+                                                    arrProjectJiraCollection.push(
+                                                        {
+                                                            jiraIssueNumber: singularJiraIssueNumber,
+                                                            jiraIssueDescription: issueSummary,
+                                                            issueStatus,
+                                                            commitMessages: [],
+                                                            currentFixVersions
+                                                        }
+                                                    )
+                                                    logNewLine('', 'gray')
+                                                    logThisLine(`Add:  ${singularJiraIssueNumber}`, 'green')
+                                                    logThisLine(`${triggersMajorTagNumberIncrease ? ' [Major]' : ''}`, 'red')
 
-                                        //get available project fix versions
-                                        //var url = `https://jira.bearingpointcaribbean.com/rest/api/latest/project/${jiraProject}/versions`
-                                        //availableFixVersions = await testJira.jiraGet(profile.jiraUsername, profile.jiraPassword,url);
-                                        try {
-                                            theIssue = await testJira.getJiraIssue(profile.jiraUsername, profile.jiraPassword, jiraIssueNumber);
-                                            var issueSummary = theIssue.fields.summary;
-                                            var issueStatus = theIssue.fields.status.name;
-                                            var currentFixVersions = theIssue.fields.fixVersions
+                                                    arrProjectJiraCollection[arrProjectJiraCollection.length - 1].commitMessages.push(commitMessageString);
+                                                } else {
+                                                    jiraProject = '';
 
-                                        } catch (error) {
-                                            //console.dir('error: getJiraIssue:', jiraIssueNumber)
-                                            var issueSummary = 'could not be retrieved due to error';
-                                            var issueStatus = 'could not be retrieved due to error'
-                                            var currentFixVersions = [];
-                                        }
-                                        arrProjectJiraCollection.push(
-                                            {
-                                                jiraIssueNumber: jiraIssueNumber,
-                                                jiraIssueDescription: issueSummary,
-                                                issueStatus,
-                                                commitMessages: [],
-                                                currentFixVersions,
-                                                potentialFixVersionName: fixVersionName,
-                                                // availableFixVersions: availableFixVersions,
-                                                //curl: `curl --location --request PUT 'https://jira.bearingpointcaribbean.com/rest/api/latest/issue/${jiraEntry.msg.match(regExJira).toString()}' --header 'Authorization: ${'Basic ' + Buffer.from(argv.jiraUsername + ":" + argv.jiraPassword, 'binary').toString('base64')} --header 'Content-Type: application/json' --data-raw '{ \"update\": { \"fixVersions\": [{ \"set\": [{ \"name\": \"${entry.key + ' ' + currentTag}\" }]
-                                                //>>  }] } }'`
+                                                    logNewLine('', 'gray')
+                                                    logThisLine(`Skip: ${singularJiraIssueNumber}`, 'yellow')
+                                                    logThisLine(` [${theIssue.fields.status.name}]`, 'yellow')
+
+
+                                                }
+
+
+                                            } else {
+                                                logNewLine('', 'gray');
+                                                logNewLine('Comment contains invalid or unknown JIRA project: ' + singularJiraIssueNumber, 'red');
                                             }
-                                        );
-                                        //add commit message to empty array
-                                        arrProjectJiraCollection[arrProjectJiraCollection.length - 1].commitMessages.push(commitMessageString);
-                                    } else {
-                                        //add commit msg to appropriate issue issue object
-                                        var indexOfExistingJiraIssue = arrProjectJiraCollection.findIndex(j => j.jiraIssueNumber === jiraEntry.msg.match(regExJira).toString());
-                                        arrProjectJiraCollection[indexOfExistingJiraIssue].commitMessages.push(commitMessageString)
-                                    };
+                                        } else {
+                                            //add commit msg to appropriate issue issue object
+                                            var indexOfExistingJiraIssue = arrProjectJiraCollection.findIndex(j => j.jiraIssueNumber === singularJiraIssueNumber)
+                                            if (arrProjectJiraCollection[indexOfExistingJiraIssue].commitMessages.indexOf(commitMessageString) === -1) {
+                                                arrProjectJiraCollection[indexOfExistingJiraIssue].commitMessages.push(commitMessageString)
+                                            }
+                                        };
+                                    }
                                 }
+
+                                //determine version name and set versio name in Jira. Maybe add version to jira.
+
+                                //jira.updateJiraIssueFixVersion(jiraIssueNumber,fixVersionName);
+
+
+
+                                var derivedNewTagNumber = await getDerivedNewTagNumber(dirWithQuotedProjectName, bMajorTagNumberIncrease, lastTagNumber)
+                                if (profile.verbose) {
+                                    logNewLine('', 'gray');
+                                    logNewLine('', 'gray');
+                                    logNewLine(`${derivedNewTagNumber.impact}: ${entry.key} from ${lastTagNumber} to ${derivedNewTagNumber.derivedNewTagNumber}, [${arrProjectJiraCollection.length} JIRA issues]`, "green");
+                                }
+
+                                var fixVersionNumber = derivedNewTagNumber.derivedNewTagNumber;
+                                var fixVersionName = entry.key + ' ' + derivedNewTagNumber.derivedNewTagNumber;
+                                var availableFixVersions = '';
+                                //add unique jira project to array
+                                if (arrJiraProjects.indexOf(jiraProject) === -1 && jiraProject != '') {
+
+                                    //get available project fix versions
+                                    var url = `https://jira.bearingpointcaribbean.com/rest/api/latest/project/${jiraProject}/versions`
+                                    //availableFixVersions = await testJira.jiraGet(profile.jiraUsername, profile.jiraPassword,url);
+
+
+                                    arrJiraProjects.push({
+                                        jiraProject: jiraProject,
+                                        availableFixVersions: availableFixVersions
+                                    });
+                                    // if (jiraProject.toLowerCase() === 'mbsai') {
+                                    //     testJira.addVersionIfNotExists(profile.jiraUsername, profile.jiraPassword, jiraProject, 'fixVersionName');
+                                    // }
+                                }
+
+
                                 //sort jira issue alphabetically
                                 arrProjectJiraCollection.sort();
+                                //todo: use array.map
+                                //now derivedNewTagNumber is known. Go over the jira issues and batch update the fix version
+                                for await (const j of arrProjectJiraCollection) {
+                                    //if (j.issueStatus === 'Completed') {
+                                        j.project = entry.key;
+                                        j.fixVersionName = fixVersionName;
+                                        j.availableFixVersions = availableFixVersions;
+                                        j.curl = `curl --location --request PUT 'https://jira.bearingpointcaribbean.com/rest/api/latest/issue/${j.jiraIssueNumber}' --header 'Authorization: ${'Basic ' + Buffer.from(argv.jiraUsername + ":" + argv.jiraPassword, 'binary').toString('base64')} --header 'Content-Type: application/json' --data-raw '{ \"update\": { \"fixVersions\": [{ \"set\": [{ \"name\": \"${fixVersionName}\" }]}] } }'`
+                                    //}
+                                }
+
+                                //let clonedArrProjectJiraCollection = [...arrProjectJiraCollection];
+                                //clonedArrProjectJiraCollection = clonedArrProjectJiraCollection.map(obj => ({ ...obj, project: entry.key }))
+                                arrOverallJiraCollection = arrOverallJiraCollection.concat(arrProjectJiraCollection)
+
+
                                 arrTagReportCollection.push({
                                     component: entry.key,
-                                    currentTag: currentTag,
-                                    dateOfCurrentTag: dateOfCurrentTag,
-                                    revisionOfCurrentTag: revisionOfCurrentTag,
-                                    previousTag: previousTag,
-                                    dateOfPreviousTag: dateOfPreviousTag,
-                                    revisionOfPreviousTag: revisionOfPreviousTag,
-                                    derivedNewTagNumber: derivedNewTagNumber,
-                                    derivedNewTagName: entry.key + ' ' + derivedNewTagNumber,
+                                    // currentTag: currentTag,
+                                    // dateOfCurrentTag: dateOfCurrentTag,
+                                    lastTagRevisionNumber: lastTagRevisionNumber,
+                                    lastTagNumber: lastTagNumber,
+                                    // previousTag: previousTag,
+                                    // dateOfPreviousTag: dateOfPreviousTag,
+                                    // revisionOfPreviousTag: revisionOfPreviousTag,
+                                    newTagNumber: fixVersionNumber,
+                                    newTagName: fixVersionName,
+                                    isMajor: (derivedNewTagNumber.impact === 'Major'),
                                     jiraProjects: arrJiraProjects,
                                     jiraIssues: arrProjectJiraCollection
-
-                                });                                
+                                });
                                 //write (append to new or existing file)
-                                var filename = workingCopyFolder + "tagreport_" + timestampStart + ".json";
-                                fs.writeFileSync(filename, JSON.stringify(arrTagReportCollection, null, 2));
+                                var filename = workingCopyFolder + "tagreport_" + timestampStart;
+                                fs.writeFileSync(filename + '.json', JSON.stringify(arrTagReportCollection, null, 2));
+
+
+                                const xlsx = require("xlsx")//npm install xlsx
+                                var newWB = xlsx.utils.book_new()
+
+                                const excelProjectArray = arrTagReportCollection.map(({jiraProjects, jiraIssues, ...keepAttrs}) => keepAttrs)
+                                var objProject = excelProjectArray.map((e) => {
+                                    return e
+                                })
+                                var newWSProject = xlsx.utils.json_to_sheet(objProject)
+
+                                const excelJiraArray = arrOverallJiraCollection.map(({commitMessages, currentFixVersions, ...keepAttrs}) => keepAttrs)
+                                var objIssue = excelJiraArray.map((e) => {
+                                    return e
+                                })
+                                var newWSIssue = xlsx.utils.json_to_sheet(objIssue)
+
+                                
+                                
+
+                                xlsx.utils.book_append_sheet(newWB, newWSProject, "projects")
+
+                                xlsx.utils.book_append_sheet(newWB, newWSIssue, "issues")
+
+                                xlsx.writeFile(newWB, filename + ".xlsx")//file name as param
+
                             } else logThisLine('[T]', 'white');
                         } else {
                             logThisLine('[T]', 'gray');
@@ -1482,36 +1571,39 @@ async function getRemoteAppVersion() {
     }
 }
 
-async function getDerivedNewTagNumber(workingCopyFolder, revisionOfCurrentTag, revisionOfPreviousTag, currentVersion) {
-    revisionOfPreviousTag = (revisionOfCurrentTag === revisionOfPreviousTag) ? revisionOfPreviousTag - 1 : revisionOfPreviousTag;
+async function getDerivedNewTagNumber(workingCopyFolder, bMajor, currentVersion) {
+
+    //revisionOfNewTag = 10000000 (revisionOfCurrentTag === revisionOfPreviousTag) ? revisionOfPreviousTag - 1 : revisionOfPreviousTag;
     const e = require("child_process");
     const execPromise = util.promisify(e.exec);
     //    const oldTagUrl = componentUrl+'/'+previousTag;
     //    const newTagUrl = componentUrl+'/'+currentTag;
-    const execCommand = `svn diff ${workingCopyFolder} --summarize -r ${revisionOfPreviousTag}:${revisionOfCurrentTag}`
+    // const execCommand = `svn diff ${workingCopyFolder} --summarize -r ${lastTagRevisionNumber}`;
 
     try {
-        const execPromiseResult = await execPromise(execCommand);
-        //default: MutationRecord, if versioned migrations or changes in interfaces
-        bMajor = (execPromiseResult.stdout.toLowerCase().includes('versioned') || execPromiseResult.stdout.toLowerCase().includes('interface'))
+        //     const execPromiseResult = await execPromise(execCommand);
+        //     //default: MutationRecord, if versioned migrations or changes in interfaces
+        //     bMajor = (execPromiseResult.stdout.toLowerCase().includes('versioned') || execPromiseResult.stdout.toLowerCase().includes('interface'))
+
+        //     logNewLine('','gray');
+        //     logNewLine('','gray');
+        //     logNewLine(execPromiseResult.stdout,'gray');
+
         currentVersionElements = currentVersion.split('.');
-        if(bMajor) {
+        if (bMajor) {
             positionToRaise = currentVersionElements.length - 2
             currentVersionElements[currentVersionElements.length - 1] = 0
         } else {
             positionToRaise = currentVersionElements.length - 1
         }
-        currentVersionElements[positionToRaise] = parseInt(currentVersionElements[positionToRaise]) + 1; 
-        return  {
-                    derivedNewTagNumber: currentVersionElements.join('.'),
-                    major: bMajor                    
-                }
+        currentVersionElements[positionToRaise] = parseInt(currentVersionElements[positionToRaise]) + 1;
+        return {
+            derivedNewTagNumber: currentVersionElements.join('.'),
+            impact: bMajor ? 'Major' : 'Minor'
+        }
     } catch (error) {
         console.dir('Error in getDerivedNewTagNumber: ', execCommand);//chalk.redBright(
         beep(3);
     }
-
-
-
 
 }

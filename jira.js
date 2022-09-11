@@ -50,7 +50,8 @@ const jiraGet = async (username, password, url) => {
     return resp.data
   } catch (err) {
     // Handle Error Here
-    console.error(err);
+    //console.error(err);
+    logNewLine(`Error getting data for ${jiraIssueNumber}`,'gray')
   }
 };
 
