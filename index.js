@@ -145,6 +145,7 @@ const svnUpdatePromise = util.promisify(svnUltimate.commands.update)
 const svnStatusPromise = util.promisify(svnUltimate.commands.status)
 const svnMergePromise = util.promisify(svnUltimate.commands.merge)
 const svnLogPromise = util.promisify(svnUltimate.commands.log)
+const svnCopyPromise = util.promisify(svnUltimate.commands.copy)
 const processLookup = util.promisify(ps.lookup)
 const glob = require('glob');
 const globPromise = util.promisify(glob);
@@ -387,6 +388,14 @@ async function main(profile, oSVNInfo) {
             svnOptions.username = profile.svnOptionsUsername
             svnOptions.password = profile.svnOptionsPassword
         };
+        //add domain to profile so it can be left out of the source
+        if(!profile.domain){
+            profile.domain = oSVNInfo.URL.split('/')[2].split('.').splice(-2).join('.')
+          data = fs.readFileSync(profile.filename);
+            var json = JSON.parse(data)
+            json.domain = profile.domain;
+            fs.writeFileSync(profile.filename, JSON.stringify(json))
+        }
         //handle command line switch to profile overrides
         if (argv.switch) profile.autoSwitch = argv.switch;
         if (argv.update) profile.autoUpdate = argv.update;
@@ -394,7 +403,7 @@ async function main(profile, oSVNInfo) {
         if (argv.flywayValidateOnly) profile.verbose = argv.flywayValidateOnly;
         if (argv.compare && profile.compareSpecificRootFolder) profile.compareSpecific = argv.compare;
         if (argv.verbose) profile.verbose = argv.verbose;
-        if (argv.tagReport || argv.tagReportExecution) profile.autoSwitch = false, profile.autoUpdate = false, profile.flyway = false, profile.compareSpecific = false, profile.verbose = true;
+        if (argv.tagReport || argv.tagReportExecution || argv.deploymentCheck) profile.autoSwitch = false, profile.autoUpdate = false, profile.flyway = false, profile.compareSpecific = false, profile.verbose = true;
         let arrAll = [];
         let s;
         let sp = ' ';
@@ -809,8 +818,8 @@ async function main(profile, oSVNInfo) {
                                         }
                                         //add unique jira issue to object array
                                         if (arrProjectJiraCollection.findIndex(j => j.jiraIssueNumber === singularJiraIssueNumber) === -1) {
-                                            var commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace(`https://jira.bearingpointcaribbean.com/browse/`, '').trim()
-                                            const listAllJiraAngloProjects = ['AIRD', 'AISSB', 'CONVA', 'IRDM', 'IRD', 'IRDM', 'MOMO', 'MTSSSKN', 'MTS', 'SDES', 'ISD', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB', 'SSBM'];
+                                            var commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace(`https://jira.${profile.domain}/browse/`, '').trim()
+                                            const listAllJiraAngloProjects = ['AIRD', 'AISSB', 'CONVA', 'IRDM', 'IRD', 'MTSSSKN', 'MTS', 'SDES', 'ISD', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB'];
                                             if (listAllJiraAngloProjects.includes(singularJiraIssueNumber.split('-')[0])) {
                                                 try {
                                                     theIssue = await jiraComponent.getJiraIssue(profile.jiraUsername, profile.jiraPassword, singularJiraIssueNumber);
@@ -867,16 +876,13 @@ async function main(profile, oSVNInfo) {
                                 }
                                 var fixVersionNumber = derivedNewTagNumber.derivedNewTagNumber;
                                 var fixVersionName = entry.key + ' ' + derivedNewTagNumber.derivedNewTagNumber;
-                                var availableFixVersions = '';
                                 //sort jira issue alphabetically
                                 arrProjectJiraCollection.sort();
                                 //todo: use array.map
                                 //now derivedNewTagNumber is known. Go over the jira issues and batch update the fix version
                                 for await (const j of arrProjectJiraCollection) {
                                     j.project = entry.key;
-                                    j.fixVersionName = fixVersionName;
-                                    j.availableFixVersions = availableFixVersions;
-                                    j.curl = `curl --location --request PUT 'https://jira.bearingpointcaribbean.com/rest/api/latest/issue/${j.jiraIssueNumber}' --header 'Authorization: ${'Basic ' + Buffer.from(argv.jiraUsername + ":" + argv.jiraPassword, 'binary').toString('base64')} --header 'Content-Type: application/json' --data-raw '{ \"update\": { \"fixVersions\": [{ \"set\": [{ \"name\": \"${fixVersionName}\" }]}] } }'`
+                                    j.curl = `curl --location --request PUT 'https://jira.${profile.domain}/rest/api/latest/issue/${j.jiraIssueNumber}' --header 'Authorization: ${'Basic ' + Buffer.from(argv.jiraUsername + ":" + argv.jiraPassword, 'binary').toString('base64')} --header 'Content-Type: application/json' --data-raw '{ \"update\": { \"fixVersions\": [{ \"set\": [{ \"name\": \"${fixVersionName}\" }]}] } }'`
                                 }
                                 arrOverallJiraCollection = arrOverallJiraCollection.concat(arrProjectJiraCollection)
                                 arrTagReportCollection.push({
@@ -919,39 +925,51 @@ async function main(profile, oSVNInfo) {
                     if (argv.tagReportExecution) {
                         // set reference to component object in tagReportArry                        
                         tagReportExecutionComponent = tagReportArray.find(y => (y.component == entry.key));
-                        logThisLine('[E]', 'gray')
-                        logNewLine('', 'gray')
-                        logNewLine('', 'gray')
-                        logNewLine(`${tagReportExecutionComponent.component} holding ${tagReportExecutionComponent.jiraIssues.length} issues in ${tagReportExecutionComponent.jiraProjects.length} distinct project(s)`, 'green')
-                        let jiraProjecterCounter = 1;
-                        for await (const jiraProject of tagReportExecutionComponent.jiraProjects) {
-                            //create fix version in each distinct project, if it not exists already
-                            logNewLine(`[${jiraProjecterCounter}/${tagReportExecutionComponent.jiraProjects.length}] adding fix version '${tagReportExecutionComponent.newTagName}' to project '${jiraProject}'`, 'green')
-                            //perform on sample project
-                            if (tagReportExecutionComponent.component === 'DSC Business license') {
-                                try {
-                                    await jiraComponent.addVersionIfNotExists(profile.jiraUsername, profile.jiraPassword, jiraProject, tagReportExecutionComponent.newTagName);
-                                } catch (error) {
-                                    console.dir('Errors while executing addVersionIfNotExists: ', jiraProject, tagReportExecutionComponent.newTagName)
-                                    beep(3);
-                                }
-                            }
-                            jiraProjecterCounter++;
+                        logThisLine('[E]', 'gray');
+                        logNewLine('', 'gray');
+                        logNewLine('', 'gray');
+
+                        if(entry.isTrunk) {
+                            //console.log(`Tagging ${entry.componentBaseFolder} with tag ${tagReportExecutionComponent.newTagNumber}`)
+                            //const tagResult = await svnCopyPromise(`"${baseURL}${entry.componentBaseFolder}" "${baseURL}${entry.componentBaseFolder}"`);
+                            let svnCopyCommand = `svn copy "${baseURL}${entry.componentBaseFolder}" "${baseURL}${entry.componentBaseFolder}/tags/${tagReportExecutionComponent.newTagNumber}" -m "${tagReportExecutionComponent.newTagNumber}"`
+                            console.log(`${entry.componentBaseFolder}: ${svnCopyCommand}`)
+                            //let tagResult = await execShellCommand(flywayCommand);
                         }
-                        let jiraIssueCounter = 1;
-                        for await (const jiraIssue of tagReportExecutionComponent.jiraIssues) {
-                            //create fix version in each issue
-                            logNewLine(`[${jiraIssueCounter}/${tagReportExecutionComponent.jiraIssues.length}] adding fix version '${tagReportExecutionComponent.newTagName}' to jira issue '${jiraIssue.jiraIssueNumber}'`, 'green')
-                            //perform on sample project
-                            if (tagReportExecutionComponent.component === 'DSC Business license') {
-                                try {
-                                    await jiraComponent.updateJiraIssueFixVersion(profile.jiraUsername, profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionComponent.newTagName);
-                                } catch (error) {
-                                    console.dir('Errors while executing updateJiraIssueFixVersion: ', jiraIssue.jiraIssueNumber, tagReportExecutionComponent.newTagName)
-                                    beep(3);
-                                }
+
+                        if(false) {
+                            let tagReportExecutionComponentLevelTagName =  entry.key+' '+tagReportExecutionComponent.newTagNumber;
+                            logNewLine(`${tagReportExecutionComponent.component} holding ${tagReportExecutionComponent.jiraIssues.length} issues in ${tagReportExecutionComponent.jiraProjects.length} distinct project(s)`, 'green')
+                            let jiraProjecterCounter = 1;
+                            for await (const jiraProject of tagReportExecutionComponent.jiraProjects) {
+                                //create fix version in each distinct project, if it not exists already
+                                logNewLine(`[${jiraProjecterCounter}/${tagReportExecutionComponent.jiraProjects.length}] adding fix version '${tagReportExecutionComponentLevelTagName}' to project '${jiraProject}'`, 'green')
+                                //perform on sample project
+                                //if (tagReportExecutionComponent.component === 'DSC Business license') {
+                                    try {
+                                        await jiraComponent.addVersionIfNotExists(profile.jiraUsername, profile.jiraPassword, jiraProject, tagReportExecutionComponentLevelTagName);
+                                    } catch (error) {
+                                        console.dir('Errors while executing addVersionIfNotExists: ', jiraProject, tagReportExecutionComponentLevelTagName)
+                                        beep(3);
+                                    }
+                                //}
+                                jiraProjecterCounter++;
                             }
-                            jiraIssueCounter++;
+                            let jiraIssueCounter = 1;
+                            for await (const jiraIssue of tagReportExecutionComponent.jiraIssues) {
+                                //create fix version in each issue
+                                logNewLine(`[${jiraIssueCounter}/${tagReportExecutionComponent.jiraIssues.length}] adding fix version '${tagReportExecutionComponentLevelTagName}' to jira issue '${jiraIssue.jiraIssueNumber}'`, 'green')
+                                //perform on sample project
+                                //if (tagReportExecutionComponent.component === 'DSC Business license') {
+                                    try {
+                                        await jiraComponent.updateJiraIssueFixVersion(profile.jiraUsername, profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionComponentLevelTagName);
+                                    } catch (error) {
+                                        console.dir('Errors while executing updateJiraIssueFixVersion: ', jiraIssue.jiraIssueNumber, tagReportExecutionComponentLevelTagName)
+                                        beep(3);
+                                    }
+                                //}
+                                jiraIssueCounter++;
+                            }
                         }
                         //update external from current version to new tag
                     } else {
@@ -1184,7 +1202,7 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
     if (!fs.existsSync(dir)) {
         renderTitleToVersion();
         let qBranches;
-        var appRoot = `https://svn.bearingpointcaribbean.com/svn/${app}_anguilla`;
+        var appRoot = `https://svn.${profile.domain}/svn/${app}_anguilla`;
         try {
             let svnOptions = { trustServerCert: true };
             //if provided, add username and password to the svn options
@@ -1211,7 +1229,7 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
         await inquirer
             .prompt(questionsToVersion)
             .then(async (answersToVersion) => {
-                const url = `https://svn.bearingpointcaribbean.com/svn/${app.toUpperCase()}_ANGUILLA/${answersToVersion.selectedSVNVersion}/${app.toUpperCase()} Portal`;
+                const url = `https://svn.${profile.domain}/svn/${app.toUpperCase()}_ANGUILLA/${answersToVersion.selectedSVNVersion}/${app.toUpperCase()} Portal`;
                 const e = require("child_process");
                 const execPromise = util.promisify(e.exec);
                 const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`
