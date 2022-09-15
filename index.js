@@ -1,46 +1,41 @@
 #!/usr/bin/env node
 let arrOverallJiraCollection = [];
+let tagsCreated=[];
+let arrComponents=[];
+
 // handle arguments
 const yargs = require('yargs');
 const argv = yargs
     .option('app', {
-        alias: 'a',
         describe: 'choose an app',
         choices: ['mbs', 'mts']
     })
     .option('workingCopyFolder', {
-        alias: 'w',
         description: 'specify working copy folder',
         type: 'string'
     })
     .option('select', {
-        alias: 's',
         description: 'switch to a selected version',
         type: 'boolean'
     })
     .option('verbose', {
-        alias: 'v',
         description: 'provide additional information in the output',
         default: false,
         type: 'boolean'
     })
     .option('profile', {
-        alias: 'p',
         description: 'use a particular profile',
         type: 'string'
     })
     .option('writeJsonFiles', {
-        alias: 'j',
         description: 'write intermediate json files, like externals.jon, internals.json and all.json',
         type: 'string'
     })
     .option('deploymentCheck', {
-        alias: 'd',
         description: 'write intermediate json files, like externals.jon, internals.json and all.json',
         type: 'boolean'
     })
     .option('tagReport', {
-        alias: 't',
         description: 'generate a tag report for each project. Switches off [S],[U],[F] and [C]',
         type: 'boolean'
     })
@@ -50,22 +45,18 @@ const argv = yargs
         type: 'string'
     })
     .option('forceSVN', {
-        alias: 'f',
         description: 'write intermediate json files, like externals.jon, internals.json and all.json',
         type: 'boolean'
     })
     .option('switch', {
-        alias: 'fw',
         description: 'enable switch, also when not enabled in profile',
         type: 'boolean'
     })
     .option('update', {
-        alias: 'fu',
         description: 'enable update, also when not enabled in profile',
         type: 'boolean'
     })
     .option('flyway', {
-        alias: 'fw',
         description: 'enable flyway, also when not enabled in profile. Profile must contain flyway configuration to have effect.',
         type: 'boolean'
     })
@@ -75,37 +66,39 @@ const argv = yargs
         type: 'boolean'
     })
     .option('compare', {
-        alias: 'fc',
         description: 'enable specific compare, also when not enabled in profile. Profile must contain compare configuration to have effect.',
         type: 'boolean'
     })
     .option('verbose', {
-        alias: 'fv',
         description: 'enable verbose, also when not enabled in profile.',
         type: 'boolean'
     })
     .option('keepUp', {
-        alias: 'k',
         description: 'update potential updates from the last run .',
         type: 'boolean'
     })
     .option('project', {
-        alias: 'pr',
         description: 'limit to a single project. Specify a string with a single project, i.e. "_CONTINUOUS_DELIVERY" or "Development related".',
         type: 'string'
     })
     .option('startRow', {
-        alias: 'sr',
         description: 'take action from this row number and beyond',
         default: 1,
         type: 'number'
     })
     .option('startProject', {
-        alias: 'sp',
         description: 'take action from this project and beyond',
         default: '1', //defausomething that is alphabetically before anything else
         type: 'string'
     })
+    .option('tagDateBefore', {
+        description: 'in a tag report, consider only tags before this date',
+        type: 'date'
+    })    
+    .option('tagNumberBefore', {
+        description: 'in a tag report, consider only tags before this date',
+        type: 'string'
+    })            
     .option('svnOptionsUsername', {
         description: 'svn username',
         default: '',
@@ -145,7 +138,8 @@ const svnUpdatePromise = util.promisify(svnUltimate.commands.update)
 const svnStatusPromise = util.promisify(svnUltimate.commands.status)
 const svnMergePromise = util.promisify(svnUltimate.commands.merge)
 const svnLogPromise = util.promisify(svnUltimate.commands.log)
-const svnCopyPromise = util.promisify(svnUltimate.commands.copy)
+//const svnCopyPromise = util.promisify(svnUltimate.commands.copy)
+const svnLastestTagPromise = util.promisify(svnUltimate.util.getLatestTag)
 const processLookup = util.promisify(ps.lookup)
 const glob = require('glob');
 const globPromise = util.promisify(glob);
@@ -445,11 +439,13 @@ async function main(profile, oSVNInfo) {
                 }
                 //for componentBaseFolder. If domain-specific, keep first 3, else keep first 4 parts
                 let partsToKeep = (name.toLowerCase().startsWith('dsc')) ? 4 : 5
+                
                 if (name !== "") {
                     arrExternals.push({
                         key: name,
                         path: decodeURI(path),
                         componentBaseFolder: decodeURI(path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
+                        componentName : getComponentName(decodeURI(path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')),
                         isExternal: true,
                         isCoreComponent: !name.toLowerCase().includes('interface def'),
                         isInterfaceDefinition: name.toLowerCase().includes('interface def'),
@@ -459,7 +455,7 @@ async function main(profile, oSVNInfo) {
                         isTagged: decodeURI(path).toLocaleLowerCase().includes('/tags/'),
                         isBranched: decodeURI(path).toLocaleLowerCase().includes('/branches/'),
                         isTrunk: decodeURI(path).toLocaleLowerCase().includes('/trunk/')
-                    })
+                    })                    
                 };
             });
             if (argv.writeJsonFiles) {
@@ -764,159 +760,203 @@ async function main(profile, oSVNInfo) {
                     }
                     //create a jira tag report for each project
                     if (argv.tagReport) {
-                        if (entry.isCoreComponent) { //entry.isTrunk//entry.isExternal &&
-                            //get list of tags of this external
-                            var str = entry.componentBaseFolder;
-                            var strSplittedArray = str.split('/');
-                            var tagIndex = strSplittedArray.indexOf('tags');
-                            var sListURL;
-                            sListURL = `"${baseURL}${entry.componentBaseFolder}/tags"`;
-                            //get list of tags of this entry
-                            const lsTags = await svnListPromise(sListURL);
-                            arrTags = lsTags.list.entry.filter(item => !isNaN(item.name.charAt(0)));
-                            //properly order semantic tags
-                            if (arrTags.length > 1) {
-                                arrTagsSorted = arrTags.map(a => a.name.replace(/\d+/g, n => +n + 100000)).sort().map(a => a.replace(/\d+/g, n => +n - 100000));
-                            } else {
-                                //nothing to be sorted since there's only 1
-                                arrTagsSorted = arrTags
-                            }
-                            if (Array.isArray(arrTagsSorted)) {
-                                let tagIndexSubtractor = (entry.isTrunk) ? 1 : 2
-                                var lastTagNumber = arrTagsSorted[arrTagsSorted.length - tagIndexSubtractor];
-                                var lastTagObject = arrTags.find(q => q.name === lastTagNumber);
-                                var lastTagRevisionNumber = lastTagObject.commit.$.revision
-                            } else {
-                                // current tag is the first tag
-                                console.log('current tag is the first tag: to be implemented')
-                            }
-                            var bComponentLevelMajorTagNumberIncrease = false; //can be modified below
-                            const cloneSvnOptions = JSON.parse(JSON.stringify(svnOptions));
-                            cloneSvnOptions.revision = `${lastTagRevisionNumber}:HEAD`//:{${dateOfCurrentTag}} --verbose`
-                            cloneSvnOptions.verbose = true
-                            const logList = await svnLogPromise(`"${baseURL}${entry.componentBaseFolder}"`, cloneSvnOptions);
-                            if (logList.logentry && logList.logentry.length > 0) {
-                                logThisLine('[T]', 'green');
-                                if (entry.isTagged) logThisLine(' - already tagged', 'red');
-                                var logListEntries = logList.logentry
-                                //filter the log entries to have only commit messages with JIRA numbers
-                                regExJira = new RegExp('([A-Z][A-Z0-9]+-[0-9]+)', 'g');
-                                logListEntries = logListEntries.filter(l => l.author !== 'continuousdelivery' && regExJira.test(l.msg.toUpperCase()));
-                                //add selected entries in an custom array
-                                let arrProjectJiraCollection = [];
-                                //keep unique jira projects in separate array
-                                let arrJiraProjects = [];
-                                logNewLine('', 'gray');
-                                for await (const jiraEntry of logListEntries) {
-                                    //add item only if it is not in the collection already
-                                    var jiraIssueNumber = jiraEntry.msg.match(regExJira).toString().toUpperCase().trim();
-                                    for (const singularJiraIssueNumber of jiraIssueNumber.split(',')) {
-                                        var bIssueLevelMajorTagNumberIncrease = false;
-                                        if (JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('versioned') || JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('interface')) {
-                                            bIssueLevelMajorTagNumberIncrease = true;
-                                            bComponentLevelMajorTagNumberIncrease = true;
-                                        }
-                                        //add unique jira issue to object array
-                                        if (arrProjectJiraCollection.findIndex(j => j.jiraIssueNumber === singularJiraIssueNumber) === -1) {
-                                            var commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace(`https://jira.${profile.domain}/browse/`, '').trim()
-                                            const listAllJiraAngloProjects = ['AIRD', 'AISSB', 'CONVA', 'IRDM', 'IRD', 'MTSSSKN', 'MTS', 'SDES', 'ISD', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB'];
-                                            if (listAllJiraAngloProjects.includes(singularJiraIssueNumber.split('-')[0])) {
-                                                try {
-                                                    theIssue = await jiraComponent.getJiraIssue(profile.jiraUsername, profile.jiraPassword, singularJiraIssueNumber);
-                                                    var issueSummary = theIssue.fields.summary;
-                                                    var issueStatus = theIssue.fields.status.name;
-                                                    var currentFixVersions = theIssue.fields.fixVersions
-                                                } catch (error) {
-                                                    var issueSummary = 'could not be retrieved due to error';
-                                                    var issueStatus = 'could not be retrieved due to error'
-                                                    var currentFixVersions = [];
-                                                }
-                                                const listUnwantedJiraIssueStates = []; //'Ready for development', 'In test', 'On hold'
-                                                if (!listUnwantedJiraIssueStates.includes(theIssue.fields.status.name)) {
-                                                    //add unique jira project to array
-                                                    var jiraProject = singularJiraIssueNumber.substring(0, singularJiraIssueNumber.indexOf('-'));
-                                                    if (arrJiraProjects.indexOf(jiraProject) === -1) arrJiraProjects.push(jiraProject);
-                                                    //add jira issue to object array
-                                                    arrProjectJiraCollection.push(
-                                                        {
-                                                            jiraIssueNumber: singularJiraIssueNumber,
-                                                            jiraIssueDescription: issueSummary,
-                                                            issueStatus,
-                                                            commitMessages: [],
-                                                            currentFixVersions
-                                                        }
-                                                    )
-                                                    logNewLine('', 'gray')
-                                                    logThisLine(`Add:  ${singularJiraIssueNumber}`, 'green')
-                                                    logThisLine(`${bIssueLevelMajorTagNumberIncrease ? ' [Major]' : ''}`, 'red')
-                                                    arrProjectJiraCollection[arrProjectJiraCollection.length - 1].commitMessages.push(commitMessageString);
+                        if (entry.isCoreComponent) {                                                        
+                            //check if component already added to arrComponents 
+                            if (arrComponents.indexOf(entry.componentName) === -1) {
+                                //get list of tags of this external
+                                var str = entry.componentBaseFolder;
+                                
+                                var strSplittedArray = str.split('/');
+                                var tagIndex = strSplittedArray.indexOf('tags');
+                                var sListURL;
+                                sListURL = `"${baseURL}${entry.componentBaseFolder}/tags"`;
+                                //get list of tags of this entry
+                                const lsTags = await svnListPromise(sListURL);
+                                //create array, only of numeric tags
+                                arrTags = lsTags.list.entry.filter(item => !isNaN(item.name.charAt(0)));
+                                //if tagDateBefore argument is provided then additionally filter
+
+                                //properly order semantic tags on unfiltered arrTags
+                                if (arrTags.length > 1) {
+                                    arrTagsSorted = arrTags.map(a => a.name.replace(/\d+/g, n => +n + 100000)).sort().map(a => a.replace(/\d+/g, n => +n - 100000));
+                                } else {
+                                    //nothing to be sorted since there's only 1
+                                    arrTagsSorted = arrTags
+                                }                                
+
+                                //if current project is either on trunk or when tagdate or number have been provided, get latestTagNumber to set a fixVersionNumber
+                                if(!entry.isTrunk||argv.tagDateBefore||argv.tagNumberBefore){
+                                    var latestTagNumber = arrTagsSorted[arrTagsSorted.length-1]
+                                }
+
+                                //now apply filtering
+                                if(argv.tagDateBefore) arrTags = arrTags.filter(item => new Date(item.commit.date) < new Date(argv.tagDateBefore));
+                                if(argv.tagNumberBefore) arrTags = arrTags.filter(item => item.name < argv.tagNumberBefore);
+
+
+                                //properly order semantic tags on (now) filtered arrTags
+                                if (arrTags.length > 1) {
+                                    arrTagsSorted = arrTags.map(a => a.name.replace(/\d+/g, n => +n + 100000)).sort().map(a => a.replace(/\d+/g, n => +n - 100000));
+                                } else {
+                                    //nothing to be sorted since there's only 1
+                                    arrTagsSorted = arrTags
+                                }
+
+                                if (Array.isArray(arrTagsSorted)) {
+                                    let tagIndexSubtractor = (entry.isTrunk||argv.tagDateBefore||argv.tagNumberBefore) ? 1 : 2
+                                    var lastTagNumber = arrTagsSorted[arrTagsSorted.length - tagIndexSubtractor];
+                                    var lastTagObject = arrTags.find(q => q.name === lastTagNumber);
+                                    var lastTagRevisionNumber = lastTagObject.commit.$.revision
+                                    
+                                } else {
+                                    // current tag is the first tag
+                                    console.log('current tag is the first tag: to be implemented')
+                                }
+                                var bComponentLevelMajorTagNumberIncrease = false; //might be modified below
+                                const cloneSvnOptions = JSON.parse(JSON.stringify(svnOptions));
+                                cloneSvnOptions.revision = `${lastTagRevisionNumber}:HEAD`//:{${dateOfCurrentTag}} --verbose`
+                                cloneSvnOptions.verbose = true
+                                const logList = await svnLogPromise(`"${baseURL}${entry.componentBaseFolder}"`, cloneSvnOptions);
+                                var logListEntries = logList.logentry;
+                                if (logListEntries && logListEntries.length > 0) {
+                                    let bComponentWasChangedSincePreviousTag = true;
+                                    logThisLine('[T]', 'green');
+                                    if (entry.isTagged) logThisLine(' - already tagged', 'red');                                    
+                                    //filter the log entries to have only commit messages with JIRA numbers
+                                    regExJira = new RegExp('([A-Z][A-Z0-9]+-[0-9]+)', 'g');
+                                    logListEntries = logListEntries.filter(l => l.author !== 'continuousdelivery' && regExJira.test(l.msg.toUpperCase()));
+                                    //add selected entries in an custom array
+                                    let arrComponentJiraCollection = [];
+                                    //keep unique jira projects in separate array
+                                    let arrJiraProjects = [];
+                                    logNewLine('', 'gray');
+                                    for await (const jiraEntry of logListEntries) {
+                                        //add item only if it is not in the collection already
+                                        var jiraIssueNumber = jiraEntry.msg.match(regExJira).toString().toUpperCase().trim();
+                                        for (const singularJiraIssueNumber of jiraIssueNumber.split(',')) {
+                                            var bIssueLevelMajorTagNumberIncrease = false;
+                                            if (JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('versioned') || JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('interface')) {
+                                                bIssueLevelMajorTagNumberIncrease = true;
+                                                bComponentLevelMajorTagNumberIncrease = true;
+                                            }
+                                            //add unique jira issue to object array
+                                            if (arrComponentJiraCollection.findIndex(j => j.jiraIssueNumber === singularJiraIssueNumber) === -1) {
+                                                var commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace(`https://jira.${profile.domain}/browse/`, '').trim()
+                                                const listAllJiraAngloProjects = ['AIRD', 'AISSB', 'CONVA', 'IRD', 'MTSSSKN', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB'];
+                                                if (listAllJiraAngloProjects.includes(singularJiraIssueNumber.split('-')[0])) {
+                                                    try {
+                                                        theIssue = await jiraComponent.getJiraIssue(profile.jiraUsername, profile.jiraPassword, profile.domain, singularJiraIssueNumber);
+                                                        var issueSummary = theIssue.fields.summary;
+                                                        var issueStatus = theIssue.fields.status.name;
+                                                        var currentFixVersions = theIssue.fields.fixVersions
+                                                    } catch (error) {
+                                                        var issueSummary = 'could not be retrieved due to error';
+                                                        var issueStatus = 'could not be retrieved due to error'
+                                                        var currentFixVersions = [];
+                                                    }
+                                                    const listUnwantedJiraIssueStates = []; //'Ready for development', 'In test', 'On hold'
+                                                    if (!listUnwantedJiraIssueStates.includes(theIssue.fields.status.name)) {
+                                                        //add unique jira project to array
+                                                        var jiraProject = singularJiraIssueNumber.substring(0, singularJiraIssueNumber.indexOf('-'));
+                                                        if (arrJiraProjects.indexOf(jiraProject) === -1) arrJiraProjects.push(jiraProject);
+                                                        //add jira issue to object array
+                                                        arrComponentJiraCollection.push(
+                                                            {
+                                                                jiraIssueNumber: singularJiraIssueNumber,
+                                                                jiraIssueDescription: issueSummary,
+                                                                issueStatus,
+                                                                commitMessages: []
+                                                                //,currentFixVersions
+                                                            }
+                                                        )
+                                                        logNewLine('', 'gray')
+                                                        logThisLine(`Add:  ${singularJiraIssueNumber}`, 'green')
+                                                        logThisLine(`${bIssueLevelMajorTagNumberIncrease ? ' [Major]' : ''}`, 'red')
+                                                        arrComponentJiraCollection[arrComponentJiraCollection.length - 1].commitMessages.push(commitMessageString);
+                                                    } else {
+                                                        logNewLine('', 'gray')
+                                                        logThisLine(`Skip: ${singularJiraIssueNumber}`, 'yellow')
+                                                        logThisLine(` [${theIssue.fields.status.name}]`, 'yellow')
+                                                    }
                                                 } else {
-                                                    logNewLine('', 'gray')
-                                                    logThisLine(`Skip: ${singularJiraIssueNumber}`, 'yellow')
-                                                    logThisLine(` [${theIssue.fields.status.name}]`, 'yellow')
+                                                    logNewLine('', 'gray');
+                                                    logNewLine('Comment contains invalid or unknown JIRA project: ' + singularJiraIssueNumber, 'red');
                                                 }
                                             } else {
-                                                logNewLine('', 'gray');
-                                                logNewLine('Comment contains invalid or unknown JIRA project: ' + singularJiraIssueNumber, 'red');
-                                            }
-                                        } else {
-                                            //add commit msg to appropriate issue issue object
-                                            var indexOfExistingJiraIssue = arrProjectJiraCollection.findIndex(j => j.jiraIssueNumber === singularJiraIssueNumber)
-                                            if (arrProjectJiraCollection[indexOfExistingJiraIssue].commitMessages.indexOf(commitMessageString) === -1) {
-                                                arrProjectJiraCollection[indexOfExistingJiraIssue].commitMessages.push(commitMessageString)
-                                            }
-                                        };
+                                                //add commit msg to appropriate issue issue object
+                                                var indexOfExistingJiraIssue = arrComponentJiraCollection.findIndex(j => j.jiraIssueNumber === singularJiraIssueNumber)
+                                                if (arrComponentJiraCollection[indexOfExistingJiraIssue].commitMessages.indexOf(commitMessageString) === -1) {
+                                                    arrComponentJiraCollection[indexOfExistingJiraIssue].commitMessages.push(commitMessageString)
+                                                }
+                                            };
+                                        }
+                                    }
+                                    //if there have been changes since the previous tag then needs a new version number
+
+                                    if(bComponentWasChangedSincePreviousTag){
+                                        var derivedNewTagNumber = await getDerivedNewTagNumber(bComponentLevelMajorTagNumberIncrease, lastTagNumber)
+                                        if (profile.verbose) {
+                                            logNewLine('', 'gray');
+                                            logNewLine('', 'gray');
+                                            logNewLine(`${bComponentLevelMajorTagNumberIncrease?'Major':'Minor'}: ${entry.key} from ${lastTagNumber} to ${derivedNewTagNumber}, [${arrComponentJiraCollection.length} JIRA issues]`, "green");
+                                        }
+                                        var fixVersionNumber = entry.isTrunk ? derivedNewTagNumber:latestTagNumber;
+                                        var fixVersionName = entry.componentName + ' ' + fixVersionNumber;
+                                        //sort jira issue alphabetically
+                                        arrComponentJiraCollection.sort();
+
+                                        const arrComponentJiraCollectionMapped = arrComponentJiraCollection.map((element) => ({                                            
+                                            component: entry.componentName,
+                                            ...element
+                                          }));
+                                          arrComponentJiraCollection = arrComponentJiraCollectionMapped;
+
+                                        //add unique component to arrComponents
+                                        arrComponents.push(entry.componentName);
+
+                                        arrOverallJiraCollection = arrOverallJiraCollection.concat(arrComponentJiraCollection)
+
+                                        arrTagReportCollection.push({
+                                            component: entry.componentName,
+                                            lastTagRevisionNumber: lastTagRevisionNumber,
+                                            lastTagNumber: lastTagNumber,
+                                            newTagNumber: fixVersionNumber,
+                                            newTagName: fixVersionName,
+                                            isMajor: (derivedNewTagNumber.impact === 'Major'),
+                                            jiraProjects: arrJiraProjects,
+                                            wasAlreadyTagged: entry.isTagged,
+                                            jiraIssues: arrComponentJiraCollection                                    
+                                        });
+
+                                        //write (append to new or existing file)
+                                        var filename = workingCopyFolder + "tagreport_" + timestampStart;
+                                        fs.writeFileSync(filename + '.json', JSON.stringify(arrTagReportCollection, null, 2));
+                                        const xlsx = require("xlsx")//npm install xlsx
+                                        var newWB = xlsx.utils.book_new()
+                                        const excelProjectArray = arrTagReportCollection.map(({ jiraProjects, jiraIssues, ...keepAttrs }) => keepAttrs)
+                                        var objProject = excelProjectArray.map((e) => {
+                                            return e
+                                        })
+                                        
+                                        try {
+                                            var newWSProject = xlsx.utils.json_to_sheet(objProject)
+                                            const excelJiraArray = arrOverallJiraCollection.map(({ commitMessages, currentFixVersions, ...keepAttrs }) => keepAttrs)
+                                            var objIssue = excelJiraArray.map((e) => {
+                                                return e
+                                            })
+                                            var newWSIssue = xlsx.utils.json_to_sheet(objIssue)
+                                            xlsx.utils.book_append_sheet(newWB, newWSProject, "projects")
+                                            xlsx.utils.book_append_sheet(newWB, newWSIssue, "issues")
+                                            xlsx.writeFile(newWB, filename + ".xlsx")//file name as param                                            
+                                        } catch (error) {
+                                            console.dir('Errors while exporting to excel. Is file closed?')
+                                            beep(3);
+                                        }
                                     }
                                 }
-                                var derivedNewTagNumber = await getDerivedNewTagNumber(dirWithQuotedProjectName, bComponentLevelMajorTagNumberIncrease, lastTagNumber)
-                                if (profile.verbose) {
-                                    logNewLine('', 'gray');
-                                    logNewLine('', 'gray');
-                                    logNewLine(`${derivedNewTagNumber.impact}: ${entry.key} from ${lastTagNumber} to ${derivedNewTagNumber.derivedNewTagNumber}, [${arrProjectJiraCollection.length} JIRA issues]`, "green");
-                                }
-                                var fixVersionNumber = derivedNewTagNumber.derivedNewTagNumber;
-                                var fixVersionName = entry.key + ' ' + derivedNewTagNumber.derivedNewTagNumber;
-                                //sort jira issue alphabetically
-                                arrProjectJiraCollection.sort();
-                                //todo: use array.map
-                                //now derivedNewTagNumber is known. Go over the jira issues and batch update the fix version
-                                for await (const j of arrProjectJiraCollection) {
-                                    j.project = entry.key;
-                                    j.curl = `curl --location --request PUT 'https://jira.${profile.domain}/rest/api/latest/issue/${j.jiraIssueNumber}' --header 'Authorization: ${'Basic ' + Buffer.from(argv.jiraUsername + ":" + argv.jiraPassword, 'binary').toString('base64')} --header 'Content-Type: application/json' --data-raw '{ \"update\": { \"fixVersions\": [{ \"set\": [{ \"name\": \"${fixVersionName}\" }]}] } }'`
-                                }
-                                arrOverallJiraCollection = arrOverallJiraCollection.concat(arrProjectJiraCollection)
-                                arrTagReportCollection.push({
-                                    component: entry.key,
-                                    lastTagRevisionNumber: lastTagRevisionNumber,
-                                    lastTagNumber: lastTagNumber,
-                                    newTagNumber: fixVersionNumber,
-                                    newTagName: fixVersionName,
-                                    isMajor: (derivedNewTagNumber.impact === 'Major'),
-                                    jiraProjects: arrJiraProjects,
-                                    jiraIssues: arrProjectJiraCollection,
-                                    wasAlreadyTagged: entry.isTagged
-                                });
-                                //write (append to new or existing file)
-                                var filename = workingCopyFolder + "tagreport_" + timestampStart;
-                                fs.writeFileSync(filename + '.json', JSON.stringify(arrTagReportCollection, null, 2));
-                                const xlsx = require("xlsx")//npm install xlsx
-                                var newWB = xlsx.utils.book_new()
-                                const excelProjectArray = arrTagReportCollection.map(({ jiraProjects, jiraIssues, ...keepAttrs }) => keepAttrs)
-                                var objProject = excelProjectArray.map((e) => {
-                                    return e
-                                })
-                                var newWSProject = xlsx.utils.json_to_sheet(objProject)
-                                const excelJiraArray = arrOverallJiraCollection.map(({ commitMessages, currentFixVersions, ...keepAttrs }) => keepAttrs)
-                                var objIssue = excelJiraArray.map((e) => {
-                                    return e
-                                })
-                                var newWSIssue = xlsx.utils.json_to_sheet(objIssue)
-                                xlsx.utils.book_append_sheet(newWB, newWSProject, "projects")
-                                xlsx.utils.book_append_sheet(newWB, newWSIssue, "issues")
-                                xlsx.writeFile(newWB, filename + ".xlsx")//file name as param
-                            } else logThisLine('[T]', 'white');
+                            } else logThisLine('[T1]', 'white');
                         } else {
-                            logThisLine('[T]', 'gray');
+                            logThisLine(`[-]`, 'gray');
                         }
                         //}
                     } else {
@@ -929,15 +969,27 @@ async function main(profile, oSVNInfo) {
                         logNewLine('', 'gray');
                         logNewLine('', 'gray');
 
+                        //keep array of tags already created so they will be created only once
+                        
                         if(entry.isTrunk) {
-                            //console.log(`Tagging ${entry.componentBaseFolder} with tag ${tagReportExecutionComponent.newTagNumber}`)
-                            //const tagResult = await svnCopyPromise(`"${baseURL}${entry.componentBaseFolder}" "${baseURL}${entry.componentBaseFolder}"`);
-                            let svnCopyCommand = `svn copy "${baseURL}${entry.componentBaseFolder}" "${baseURL}${entry.componentBaseFolder}/tags/${tagReportExecutionComponent.newTagNumber}" -m "${tagReportExecutionComponent.newTagNumber}"`
-                            console.log(`${entry.componentBaseFolder}: ${svnCopyCommand}`)
-                            //let tagResult = await execShellCommand(flywayCommand);
+                            if (tagsCreated.indexOf(entry.componentBaseFolder) === -1) {
+
+                                console.log(`Tagging ${entry.componentBaseFolder} with tag ${tagReportExecutionComponent.newTagNumber}`)
+
+                                let svnCopyCommand = `svn copy "${baseURL}${entry.componentBaseFolder}/trunk" "${baseURL}${entry.componentBaseFolder}/tags/${tagReportExecutionComponent.newTagNumber}" -m "${tagReportExecutionComponent.newTagNumber}"`
+                                console.log(`${entry.componentBaseFolder}: ${svnCopyCommand}`)
+                                try {
+                                    let tagResult = await execShellCommand(svnCopyCommand);
+                                } catch (error) {
+                                    console.dir('Errors while executing execShellCommand(tag): ', svnCopyCommand)
+                                    beep(3);
+                                }
+                                
+                                tagsCreated.push(entry.componentBaseFolder);
+                            }
                         }
 
-                        if(false) {
+                        if(entry.isTrunk) {
                             let tagReportExecutionComponentLevelTagName =  entry.key+' '+tagReportExecutionComponent.newTagNumber;
                             logNewLine(`${tagReportExecutionComponent.component} holding ${tagReportExecutionComponent.jiraIssues.length} issues in ${tagReportExecutionComponent.jiraProjects.length} distinct project(s)`, 'green')
                             let jiraProjecterCounter = 1;
@@ -947,7 +999,7 @@ async function main(profile, oSVNInfo) {
                                 //perform on sample project
                                 //if (tagReportExecutionComponent.component === 'DSC Business license') {
                                     try {
-                                        await jiraComponent.addVersionIfNotExists(profile.jiraUsername, profile.jiraPassword, jiraProject, tagReportExecutionComponentLevelTagName);
+                                        await jiraComponent.addVersionIfNotExists(profile.jiraUsername, profile.jiraPassword, profile.domain, jiraProject, tagReportExecutionComponentLevelTagName);
                                     } catch (error) {
                                         console.dir('Errors while executing addVersionIfNotExists: ', jiraProject, tagReportExecutionComponentLevelTagName)
                                         beep(3);
@@ -962,7 +1014,7 @@ async function main(profile, oSVNInfo) {
                                 //perform on sample project
                                 //if (tagReportExecutionComponent.component === 'DSC Business license') {
                                     try {
-                                        await jiraComponent.updateJiraIssueFixVersion(profile.jiraUsername, profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionComponentLevelTagName);
+                                        await jiraComponent.updateJiraIssueFixVersion(profile.jiraUsername, profile.jiraPassword, profile.domain, jiraIssue.jiraIssueNumber, tagReportExecutionComponentLevelTagName);
                                     } catch (error) {
                                         console.dir('Errors while executing updateJiraIssueFixVersion: ', jiraIssue.jiraIssueNumber, tagReportExecutionComponentLevelTagName)
                                         beep(3);
@@ -1387,9 +1439,7 @@ async function getRemoteAppVersion() {
         beep(3);
     }
 }
-async function getDerivedNewTagNumber(workingCopyFolder, bMajor, currentVersion) {
-    const e = require("child_process");
-    const execPromise = util.promisify(e.exec);
+async function getDerivedNewTagNumber(bMajor, currentVersion) {
     try {
         currentVersionElements = currentVersion.split('.');
         if (bMajor) {
@@ -1399,12 +1449,14 @@ async function getDerivedNewTagNumber(workingCopyFolder, bMajor, currentVersion)
             positionToRaise = currentVersionElements.length - 1
         }
         currentVersionElements[positionToRaise] = parseInt(currentVersionElements[positionToRaise]) + 1;
-        return {
-            derivedNewTagNumber: currentVersionElements.join('.'),
-            impact: bMajor ? 'Major' : 'Minor'
-        }
+        return currentVersionElements.join('.')
     } catch (error) {
         console.dir('Error in getDerivedNewTagNumber: ', execCommand);//chalk.redBright(
         beep(3);
     }
+}
+
+function getComponentName(componentBaseFolder){
+    var p1 = componentBaseFolder.split('/')
+    return (p1[p1.length-2].replace('_',' ').includes('SolutionDevelopment') ? 'SC ':'DSC ') + p1[p1.length-1].replace('_',' ')
 }
