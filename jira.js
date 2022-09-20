@@ -4,16 +4,16 @@ var apiTopic = 'issue';
 var jira; //the jira api
 const axios = require('axios');
 // intend: create a new version for a particular project, if necessary
-async function updateJiraIssueFixVersion(jiraUsername, jiraPassword, jiraIssueNumber, fixVersion) {
+async function updateJiraIssueFixVersion(jiraUsername, jiraPassword, domain, jiraIssueNumber, fixVersion) {
       var data = `{"update":{"fixVersions":[{"add":{"name":"${fixVersion}"}}]}}`;
-      var result = await jiraPost(jiraUsername, jiraPassword, 'put',`https://jira.${profile.domain}/rest/api/latest/issue/${jiraIssueNumber}`, data);
+      var result = await jiraPost(jiraUsername, jiraPassword, 'put',`https://jira.${domain}/rest/api/latest/issue/${jiraIssueNumber}`, data);
       if (result.self) {
           console.log('Updated', result.self);
           return result.self
       }
   }
-async function getJiraIssue(jiraUsername, jiraPassword, jiraIssueNumber) {
-  return await jiraGet(jiraUsername, jiraPassword, `https://jira.${profile.domain}/rest/api/latest/issue/${jiraIssueNumber}`)  
+async function getJiraIssue(jiraUsername, jiraPassword, domain, jiraIssueNumber) {
+  return await jiraGet(jiraUsername, jiraPassword, `https://jira.${domain}/rest/api/latest/issue/${jiraIssueNumber}`)  
 }
 const jiraGet = async (username, password, url) => {
   try {
@@ -52,9 +52,9 @@ const jiraPost = async (username, password, method, url, data) => {
   }
 };
 // intend: create a new version for a particular project, if necessary
-async function addVersionIfNotExists(jiraUsername, jiraPassword, project, versionToAdd) {
+async function addVersionIfNotExists(jiraUsername, jiraPassword, domain, project, versionToAdd) {
     //get all versions of project and check if name already exists
-    versions = await jiraGet(jiraUsername, jiraPassword, `https://jira.${profile.domain}/rest/api/latest/project/${project}/versions`)
+    versions = await jiraGet(jiraUsername, jiraPassword, `https://jira.${domain}/rest/api/latest/project/${project}/versions`)
     //check if project fixverison exists
     if (versions.findIndex(element => (element.name === versionToAdd)) === -1) {
         var data = JSON.stringify({
@@ -64,7 +64,7 @@ async function addVersionIfNotExists(jiraUsername, jiraPassword, project, versio
             "projectId": versions[0].projectId,
             "released": false
         });
-        var result = await jiraPost(jiraUsername, jiraPassword, 'post',`https://jira.${profile.domain}/rest/api/latest/version`, data);
+        var result = await jiraPost(jiraUsername, jiraPassword, 'post',`https://jira.${domain}/rest/api/latest/version`, data);
         if (result.self) {
             console.log('Added', result.self);
             return result.self
