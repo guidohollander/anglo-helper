@@ -5,6 +5,8 @@
 node_modules/
 /t.js
 /jiratest.js
+/svntest.js
+/testtemplate.js
 /tag*.json
 /tag*.json
 /*.xlsx

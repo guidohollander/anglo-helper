@@ -5,6 +5,8 @@
 /include copy.json
 node_modules/
 /jiratest.js
+/svntest.js
+/testtemplate.js
 /tag*.json
 /*.xlsx
 roadmap.txt

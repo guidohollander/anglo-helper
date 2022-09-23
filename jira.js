@@ -28,10 +28,10 @@ const jiraGet = async (username, password, url) => {
         password: password
       }
     });
-    return resp.data
+    return resp
   } catch (err) {
-      console.error(err);
-    logNewLine(`Error getting data for ${jiraIssueNumber}`,'gray')
+      //console.error(err);
+    logNewLine(`Error getting data for ${url}`,'gray')
   }
 };
 const jiraPost = async (username, password, method, url, data) => {
@@ -52,17 +52,19 @@ const jiraPost = async (username, password, method, url, data) => {
   }
 };
 // intend: create a new version for a particular project, if necessary
-async function addVersionIfNotExists(jiraUsername, jiraPassword, domain, project, versionToAdd) {
+async function addVersionIfNotExists(jiraUsername, jiraPassword, domain, project, versionToAdd, bReleased) {
+    //set default
+    if(!bReleased) bReleased=false;
     //get all versions of project and check if name already exists
     versions = await jiraGet(jiraUsername, jiraPassword, `https://jira.${domain}/rest/api/latest/project/${project}/versions`)
     //check if project fixverison exists
-    if (versions.findIndex(element => (element.name === versionToAdd)) === -1) {
+    if (versions.data.findIndex(element => (element.name === versionToAdd)) === -1) {
         var data = JSON.stringify({
             "archived": false,
             "releaseDate": new Date().toISOString().replaceAll('T', '').replaceAll(':', '').substring(0, 10),
             "name": versionToAdd,
-            "projectId": versions[0].projectId,
-            "released": false
+            "projectId": versions.data[0].projectId,
+            "released": bReleased
         });
         var result = await jiraPost(jiraUsername, jiraPassword, 'post',`https://jira.${domain}/rest/api/latest/version`, data);
         if (result.self) {
