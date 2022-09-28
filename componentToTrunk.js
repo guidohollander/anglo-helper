@@ -64,7 +64,7 @@ async function perform(arr) {
           fMod = `ext_mod_${crypto.randomBytes(8).toString('hex')}`;
           fs.writeFileSync(fMod, updatedExternals);
           const svnCommand = `svnmucc propsetf svn:externals ${fMod} ${state.oSVNInfo.remoteRepo} -m "${answers.jiraIssue ? answers.jiraIssue : ''} auto update external ${answers.selectedComponent.key} from ${answers.selectedComponent.relativeUrl} to trunk"`;
-          // await util.execShellCommand(svnCommand);
+          await util.execShellCommand(svnCommand);
           fs.unlinkSync(fMod);
           await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()}: ${answers.selectedComponent.key} from ${answers.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
         }
