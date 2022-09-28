@@ -1,30 +1,26 @@
-const inquirer = require("inquirer");
+const inquirer = require('inquirer');
+const consoleLog = require('./consoleLog');
 
-module.exports = {
-    perform: async function (arrSVNExternalsCurrentSolutionTag) {
-
-        console.log('performing', arrSVNExternalsCurrentSolutionTag);
-
-        let arrComponents=['C1','C2'];
-
-        const questions = [
-            {
-                type: "list",
-                name: "selectComponent",
-                message: "Pick a component, any component.",
-                choices: arrSVNExternalsCurrentSolutionTag
-            }]
-        await inquirer
-            .prompt(questions)
-            .then((answers) => {
-                console.log(answers)
-            })
-            .catch((error) => {
-                if (error.isTtyError) {
-                    console.log("Your console environment is not supported!")
-                } else {
-                    console.dir(error)
-                }
-            })
-    }
+async function perform(arr) {
+  const oarrQ = arr.filter((e) => e.isExternal && e.isTagged && e.isCoreComponent);
+  const arrQ = Object.values(oarrQ).map((i) => (i.key));
+  const questions = [
+    {
+      type: 'list',
+      name: 'selectComponent',
+      message: 'Pick a component, any component.',
+      choices: arrQ,
+    }];
+  await inquirer
+    .prompt(questions)
+    .catch((error) => {
+      if (error.isTtyError) {
+        consoleLog.logNewLine('Your console environment is not supported!', 'gray');
+      } else {
+        consoleLog.logNewLine(error);
+      }
+    });
 }
+module.exports = {
+  perform,
+};

@@ -1,0 +1,52 @@
+const beep = require('node-beep');
+const anglo = require('./anglo');
+const consoleLog = require('./consoleLog');
+const state = require('./state');
+const promises = require('./promises');
+const svn = require('./svn');
+
+async function perform(componentEntry) {
+  const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(componentEntry.key);
+  if (!state.beInformedRunning) {
+    await promises.svnCleanUpPromise(dirWithQuotedProjectName, svn.svnOptions);
+    const updated = await promises.svnUpdatePromise(dirWithQuotedProjectName, svn.svnOptions);
+    if (updated.includes('Updated to revision')) {
+      if (state.profile.verbose) {
+        anglo.memorable('[U]', state.arrSVNUpdatedCollection, componentEntry, updated, 'green');
+        consoleLog.logNewLine('', 'gray');
+        consoleLog.logNewLine('', 'gray');
+      } else {
+        anglo.memorable('[U]', state.arrSVNUpdatedCollection, componentEntry, updated, 'green');
+      }
+    }
+    if (updated.includes('At revision')) {
+      consoleLog.logThisLine('[U]', 'gray');
+    }
+    if (updated.includes('Summary of conflicts')) {
+      if (state.profile.verbose) {
+        consoleLog.logNewLine(`[U] conflict detected, Resolve conflict(s) first: ${updated}`, 'gray'); // chalk.red(
+        beep(3);
+        process.exit();
+      }
+    }
+  } else {
+    // [U] enabled, but BI is running, so [Ŭ]. Only incoming updates, not outgoing
+    const svnStatusOptions = JSON.parse(JSON.stringify(svn.svnOptions));
+    svnStatusOptions.params = [`--allow-mixed-revisions --dry-run -r BASE:HEAD ${dirWithQuotedProjectName}`];
+    const mergeList = await promises.svnMergePromise(dirWithQuotedProjectName, svnStatusOptions);
+    if (mergeList) {
+      anglo.memorable('[Ŭ]', state.arrSVNPotentialUpdateCollection, componentEntry, mergeList, 'yellow');
+      if (state.profile.verbose) {
+        consoleLog.logNewLine('', 'gray');
+        consoleLog.logNewLine('', 'gray');
+        consoleLog.logNewLine(mergeList.replace(/^--- Merging .*/m, ''), 'yellow');
+      }
+    } else {
+      // [Ŭ] no action needed
+      consoleLog.logThisLine('[Ŭ]', 'gray');
+    }
+  }
+}
+module.exports = {
+  perform,
+};

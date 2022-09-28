@@ -20,10 +20,16 @@
     "node-beep": "^0.0.3",
     "node-svn-ultimate": "^1.2.1",
     "ps-node": "^0.1.6",
+    "semver": "^7.3.7",
     "xlsx": "^0.18.5",
     "yargs": "^17.5.1"
   },
   "engines": {
     "node": "^16.17.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.24.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.26.0"
   }
 }

@@ -1,1827 +1,671 @@
-#!/usr/bin/env node
-let arrOverallJiraCollection = [];
-let arrTagReportSolutionCollection = [];
-let componentTagsCreated = [];
-let solutionTagsCreated = [];
-let arrComponents = [];
-let arrExt = [];
-let arrSVNExternalsPreviousSolutionTag = [];
-let arrSVNExternalsCurrentSolutionTag = [];
-let arrPreviousExternals = [];
-let bDone = false;
-
-// handle arguments
-const yargs = require('yargs');
-const argv = yargs
-    .option('app', {
-        describe: 'choose an app',
-        choices: ['mbs', 'mts']
-    })
-    .option('domain', {
-        describe: 'your company domain. It will be used as domain for svn and jira urls. Do not prefix with protocol info, like https:// and also do not use slashes. Example: microsoft.com or myorganisation.org',
-        type: 'string'
-    })
-    .option('workingCopyFolder', {
-        description: 'specify working copy folder',
-        type: 'string'
-    })
-    .option('select', {
-        description: 'switch to a selected version',
-        type: 'boolean'
-    })
-    // .option('componentToTrunk', {
-    //     description: 'switch a selected component to trunk and update its svn:external definition. Can only be used on solution trunk',
-    //     type: 'boolean'
-    // })
-    .option('verbose', {
-        description: 'provide additional information in the output',
-        default: false,
-        type: 'boolean'
-    })
-    .option('profile', {
-        description: 'use a particular profile',
-        type: 'string'
-    })
-    .option('writeJsonFiles', {
-        description: 'write intermediate json files, like externals.jon, internals.json and all.json',
-        type: 'boolean'
-    })
-    .option('deploymentCheck', {
-        description: 'write intermediate json files, like externals.jon, internals.json and all.json',
-        type: 'boolean'
-    })
-    .option('tagReport', {
-        description: 'generate a tag report for each component. Switches off [S],[U],[F] and [C]',
-        type: 'boolean'
-    })
-    .option('includeTagged', {
-        description: 'mode for --tagReport. Include issues for components already tagged',
-        type: 'boolean'
-    })
-    .option('includeInternals', {
-        description: 'mode for --tagReport. Include issues for internals',
-        type: 'boolean'
-    })
-    .option('tagReportExecution', {
-        description: 'execute the tag report that is provided on the command line. Switches off [S],[U],[F] and [C]',
-        type: 'string'
-    })
-    .option('tagReportExecutionMode', {
-        describe: 'execution of the tag report: either component-only or solution-only',
-        choices: ['component', 'solution'],
-        default: 'component'
-    })
-    .option('forceSVN', {
-        description: "[S]witch and [U] despite 'Be Informed running' warning",
-        type: 'boolean'
-    })
-    .option('switch', {
-        description: 'enable switch, also when not enabled in profile',
-        type: 'boolean'
-    })
-    .option('update', {
-        alias: "u",
-        description: 'enable update, also when not enabled in profile',
-        type: 'boolean'
-    })
-    .option('flyway', {
-        alias: "f",
-        description: 'enable flyway, also when not enabled in profile. Profile must contain flyway configuration to have effect.',
-        type: 'boolean'
-    })
-    .option('flywayValidateOnly', {
-        description: 'instead of migrate, use validate actions. This will list any validation lines. This automatically enables verbose',
-        type: 'boolean'
-    })
-    .option('compare', {
-        description: 'enable specific compare, also when not enabled in profile. Profile must contain compare configuration to have effect.',
-        type: 'boolean'
-    })
-    .option('verbose', {
-        alias: "v",
-        description: 'enable verbose, also when not enabled in profile.',
-        type: 'boolean'
-    })
-    .option('keepUp', {
-        description: 'update potential updates from the last run .',
-        type: 'boolean'
-    })
-    .option('component', {
-        description: "limit the set of components to (partly) match the specified string (case insenstive), i.e. --component '_CONTINUOUS_DELIVERY' or --component 'assessment'.",
-        type: 'string'
-    })
-    .option('startRow', {
-        description: 'take action from this row number and beyond',
-        default: 1,
-        type: 'number'
-    })
-    .option('startProject', {
-        description: 'take action from this project and beyond',
-        default: '1', //defausomething that is alphabetically before anything else
-        type: 'string'
-    })
-    .option('svnOptionsUsername', {
-        description: 'svn username',
-        default: '',
-        type: 'string'
-    })
-    .option('svnOptionsPassword', {
-        description: 'svn password',
-        default: '',
-        type: 'string'
-    })
-    .option('jiraUsername', {
-        description: 'jira username',
-        default: '',
-        type: 'string'
-    })
-    .option('jiraPassword', {
-        description: 'jira password',
-        default: '',
-        type: 'string'
-    })
-    .help()
-    .alias('help', 'h').argv;
-//set variables
-const fs = require('fs')
-const svnUltimate = require('node-svn-ultimate')
-const util = require('util')
-const { exec } = require("child_process");
-const ps = require('ps-node');
-const jiraComponent = require('./jira.js');
-const semver = require('semver')
-let profile;
-const svnInfoPromise = util.promisify(svnUltimate.commands.info)
-const svnPropGetPromise = util.promisify(svnUltimate.commands.propget)
-const svnListPromise = util.promisify(svnUltimate.commands.list)
-const svnSwitchPromise = util.promisify(svnUltimate.commands.switch)
-const svnCleanUpPromise = util.promisify(svnUltimate.commands.cleanup)
-const svnUpdatePromise = util.promisify(svnUltimate.commands.update)
-const svnStatusPromise = util.promisify(svnUltimate.commands.status)
-const svnMergePromise = util.promisify(svnUltimate.commands.merge)
-const svnLogPromise = util.promisify(svnUltimate.commands.log)
-//const svnCopyPromise = util.promisify(svnUltimate.commands.copy)
-const svnPropSetPromise = util.promisify(svnUltimate.commands.propset)
-const processLookup = util.promisify(ps.lookup)
-const glob = require('glob');
-const globPromise = util.promisify(glob);
-const pjson = require('./package.json');
-let path = require('path');
-let logline = require('./log.js');
-let componentToTrunk = require('./componentToTrunk.js');
-const beep = require('node-beep');
-const { resolve } = require('path');
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-console */
 const clear = require('clear');
-const inquirer = require("inquirer");
-const { url } = require('inspector');
-let oAppContext, app;
-var arrMissingCollection = [];
-var arrSwitchUpdateCollection = [];
-var arrSVNUpdatedCollection = [];
-var arrSVNPotentialUpdateCollection = [];
-var arrFlywayUpdatedCollection = [];
-var arrCompareSpecificUpdateCollection = [];
-var arrDeploymentCheckCollection = [];
-var arrTagReportCollection = [];
-var arrSolutions = require('./solutions.json');
-//app context
-oAppContext = getProbableApp();
-oAppContext.version = pjson.version;
-oAppContext.name = pjson.name;
-oAppContext.descriptiveName = pjson.descriptivename;
-app = oAppContext.app;
-const workingCopyFolder = getWorkingCopyFolder(oAppContext);
-//const timestampStart = new Date().toISOString().replaceAll('T', '').replaceAll('-', '').replaceAll(':', '').substring(0, 14)
-let timestampStart = ''; //set in prequal;
+const fs = require('fs');
+const beep = require('node-beep');
+const inquirer = require('inquirer');
+const util = require('util');
+const path = require('path');
+const xlsx = require('xlsx');// npm install xlsx
+
+const anglo = require('./anglo');
+const clargs = require('./arguments');
+const componentToTrunk = require('./componentToTrunk');
+const consoleLog = require('./consoleLog');
+const db = require('./db');
+const promises = require('./promises');
+const state = require('./state');
+const subTaskDeploymentCheck = require('./subTask_deploymentCheck');
+const subTaskCompareSpecific = require('./subTask_compareSpecific');
+const subTaskFlyway = require('./subTask_flyway');
+const subTaskSwitch = require('./subTask_switch');
+const subTaskTagReport = require('./subTask_tagReport');
+const subTaskTagReportExecution = require('./subTask_tagReportExecution');
+const subTaskUpdate = require('./subTask_update');
+const svn = require('./svn');
+const arrSolutions = require('./solutions.json');
+const pjson = require('./package.json');
+
+// app context
+state.oAppContext = anglo.getProbableApp();
+state.oAppContext.version = pjson.version;
+state.oAppContext.name = pjson.name;
+state.oAppContext.descriptiveName = pjson.descriptivename;
+state.app = state.oAppContext.app;
+state.workingCopyFolder = anglo.getWorkingCopyFolder(state.oAppContext);
+function getComponentName(componentBaseFolder) {
+  const p1 = componentBaseFolder.split('/');
+  return (p1[p1.length - 2].replaceAll('_', ' ').includes('SolutionDevelopment') ? 'SC ' : 'DSC ') + p1[p1.length - 1].replaceAll('_', ' ').replace('Compliance', 'Compliancy').replace('SC Reallocate Payment', 'SC Payment reallocation');
+}
+async function main() {
+  try {
+    // if provided, add username and password to the svn options
+    if (state.profile.svnOptionsUsername && state.profile.svnOptionsPassword) {
+      svn.svnOptions.username = state.profile.svnOptionsUsername;
+      svn.svnOptions.password = state.profile.svnOptionsPassword;
+    }
+    // add domain to profile so it can be left out of the source
+    if (!state.profile.domain && fs.existsSync(state.profile.filename)) {
+      state.profile.domain = state.oSVNInfo.URL.split('/')[2].split('.').splice(-2).join('.');
+      const data = fs.readFileSync(state.profile.filename);
+      const json = JSON.parse(data);
+      json.domain = state.profile.domain;
+      fs.writeFileSync(state.profile.filename, JSON.stringify(json));
+    }
+    // handle command line switch to state.profile overrides
+    if (clargs.argv.switch) state.profile.autoSwitch = clargs.argv.switch;
+    if (clargs.argv.update) state.profile.autoUpdate = clargs.argv.update;
+    if (clargs.argv.flyway && state.profile.flywayPath) state.profile.flyway = clargs.argv.flyway;
+    if (clargs.argv.flywayValidateOnly) state.profile.verbose = clargs.argv.flywayValidateOnly;
+    if (clargs.argv.compare && state.profile.compareSpecificRootFolder) {
+      state.profile.compareSpecific = clargs.argv.compare;
+      state.profile.autoSwitch = false;
+      state.profile.autoUpdate = false;
+      state.profile.flyway = false;
+    }
+    if (clargs.argv.verbose) state.profile.verbose = clargs.argv.verbose;
+    if (clargs.argv.tagReport || clargs.argv.tagReportExecution || clargs.argv.deploymentCheck) {
+      state.profile.autoSwitch = false;
+      state.profile.autoUpdate = false;
+      state.profile.flyway = false;
+      state.profile.compareSpecific = false;
+      state.profile.verbose = true;
+    }
+    if (clargs.argv.select) {
+      state.profile.autoSwitch = true;
+      state.profile.autoUpdate = true;
+    }
+    // gather information about current solution for the tag report
+    state.currentSolution = arrSolutions.find((s) => s.name === state.oSVNInfo.svnApp);
+    state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionTagFrom);
+    // };
+    let arrAll = [];
+    consoleLog.showHeader();
+    // get externals
+    consoleLog.logNewLine('', 'gray');
+    consoleLog.logNewLine(`getting externals from current solution ${state.oSolution.current.tagNumber} [rev:${state.oSolution.current.tagRevisionNumber}]`, 'gray');
+    state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
+    fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
+    if (clargs.argv.tagReport) {
+      consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.tagRevisionNumber}]`, 'gray');
+      state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl
+      fs.writeFileSync('./previous_externals_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
+      consoleLog.logNewLine(`determine difference between ${state.oSolution.previous.tagNumber} and ${state.oSolution.current.tagNumber} rev:{${state.oSolution.previous.tagRevisionNumber}:${state.oSolution.current.tagRevisionNumber}}`, 'gray');
+      // difference
+      state.arrExt = state.arrSVNExternalsCurrentSolutionTag.filter((x) => !state.arrSVNExternalsPreviousSolutionTag.includes(x));
+      fs.writeFileSync('./externals_difference_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
+      // intersection: result can be used as filter on internals since we want ALL internals except for the ones that correspond with unmodified tagged components
+      const arrIntFilter = state.arrSVNExternalsCurrentSolutionTag.filter((x) => state.arrSVNExternalsPreviousSolutionTag.includes(x));
+      fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
+      arrIntFilter.forEach((entry) => {
+        const tidied = anglo.tidyArrayContent(entry);
+        if (tidied.name !== '') {
+          state.arrInternalsFilter.push({
+            key: tidied.name,
+          });
+        }
+      });
+    } else {
+      state.arrExt = state.arrSVNExternalsCurrentSolutionTag;
+    }
+    state.arrSVNExternalsPreviousSolutionTag.forEach((entry) => {
+      const tidied = anglo.tidyArrayContent(entry);
+      if (tidied.name !== '') {
+        state.arrPreviousExternals.push({
+          key: tidied.name,
+          path: decodeURI(tidied.path),
+          version: entry.split('/')[entry.split('/').length - 2],
+        });
+      }
+    });
+    const arrExternals = [];
+    state.arrExt.forEach((entry) => {
+      const tidied = anglo.tidyArrayContent(entry);
+      // for componentBaseFolder. If domain-specific, keep first 3, else keep first 4 parts
+      const partsToKeep = (tidied.name.toLowerCase().startsWith('dsc')) ? 4 : 5;
+      if (tidied.name !== '') {
+        arrExternals.push({
+          key: tidied.name,
+          path: decodeURI(tidied.path),
+          componentBaseFolder: decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
+          componentName: getComponentName(decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')),
+          isExternal: true,
+          isCoreComponent: !tidied.name.toLowerCase().includes('interface def'),
+          isInterfaceDefinition: tidied.name.toLowerCase().includes('interface def'),
+          isSpecific: tidied.name.toLowerCase().includes('specific'),
+          isDomainSpecific: tidied.name.toLowerCase().startsWith('dsc'),
+          isSolutionComponent: tidied.name.toLowerCase().startsWith('sc'),
+          isTagged: decodeURI(tidied.path).toLocaleLowerCase().includes('/tags/'),
+          isBranched: decodeURI(tidied.path).toLocaleLowerCase().includes('/branches/'),
+          isTrunk: decodeURI(tidied.path).toLocaleLowerCase().includes('/trunk/'),
+        });
+      }
+    });
+    if (clargs.argv.writeJsonFiles) {
+      fs.writeFileSync('./externals.json', JSON.stringify(arrExternals, null, 2));
+    }
+    // get internals
+    const lsInternals = await promises.svnListPromise(state.oSolution.current.tagUrl);
+    const arrInternals = [];
+    consoleLog.logNewLine('getting internals', 'gray');
+    lsInternals.list.entry.forEach((entry) => {
+      const internalEntry = {
+        key: entry.name,
+        path: `${state.oSVNInfo.svnAndApp + state.oSVNInfo.repo}/${state.oSVNInfo.angloSVNPath}/${entry.name}`,
+        componentBaseFolder: `${state.oSVNInfo.svnAndApp + state.oSVNInfo.repo}/${state.oSVNInfo.angloSVNPath}/${entry.name}`,
+        isInternal: true,
+        isCoreComponent: false,
+        isInterfaceDefinition: false,
+        isSpecific: entry.name.toLowerCase().includes('specific'),
+        isDomainSpecific: entry.name.toLowerCase().startsWith('dsc'),
+        isSolutionComponent: entry.name.toLowerCase().startsWith('sc'),
+        componentName: entry.name,
+        isTagged: decodeURI(entry.path).toLocaleLowerCase().includes('/tags/'),
+        isBranched: decodeURI(entry.path).toLocaleLowerCase().includes('/branches/'),
+        isTrunk: decodeURI(entry.path).toLocaleLowerCase().includes('/trunk/'),
+      };
+      arrInternals.push(internalEntry);
+      // delete entry.$;
+      // delete entry.commit;
+      // delete Object.assign(entry, { key: entry.name }).name;
+      // entry.isInternal = true;
+      // entry.isCoreComponent = false;
+      // entry.isInterfaceDefinition = false;
+      // entry.isSpecific = entry.key.toLowerCase().includes('specific');
+      // entry.isDomainSpecific = entry.key.toLowerCase().startsWith('dsc');
+      // entry.isSolutionComponent = entry.key.toLowerCase().startsWith('sc');
+      // entry.path = `${state.oSVNInfo.svnAndApp + state.oSVNInfo.repo}/${state.oSVNInfo.angloSVNPath}/${entry.key}`;
+      // entry.componentName = entry.key;
+      // entry.componentBaseFolder = `${state.oSVNInfo.svnAndApp + state.oSVNInfo.repo}/${state.oSVNInfo.angloSVNPath}/${entry.key}`;
+      // entry.isTagged = decodeURI(entry.path).toLocaleLowerCase().includes('/tags/');
+      // entry.isBranched = decodeURI(entry.path).toLocaleLowerCase().includes('/branches/');
+      // entry.isTrunk = decodeURI(entry.path).toLocaleLowerCase().includes('/trunk/');
+    });
+    arrInternals.filter((x) => state.arrInternalsFilter.find((y) => (y.key !== x.key.replace(/ - specific/ig, ''))));
+    if (clargs.argv.writeJsonFiles) {
+      fs.writeFileSync('./internals.json', JSON.stringify(arrInternals, null, 2));
+    }
+    // combine external and interal arrays, but filter empty elements
+    arrAll = arrExternals.concat(arrInternals);
+    // tagreportexecution: limit the projects to those stored in the tagreport
+    if (clargs.argv.tagReportExecution) {
+      const fn = clargs.argv.tagReportExecution;
+      if (fs.existsSync(path.normalize(state.workingCopyFolder + fn))) {
+        // eslint-disable-next-line global-require, import/no-dynamic-require
+        state.tagReportArray = require(path.normalize(state.workingCopyFolder + fn));
+      }
+      arrAll = arrAll.filter((x) => state.tagReportArray[0].componentCollection.find((y) => (y.component === x.componentName)));
+    }
+    // inherit exclude json from app project and store locally if not exists
+    let excludeArray = [];
+    if (!fs.existsSync(`${state.workingCopyFolder}/exclude.json`)) {
+      // eslint-disable-next-line global-require
+      excludeArray = require('./exclude.json');
+      fs.writeFileSync('./exclude.json', JSON.stringify(excludeArray, null, 2));
+    } else {
+      // load local exclude list
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      excludeArray = require(`${state.workingCopyFolder}/exclude.json`);
+    }
+    // apply to combined array
+    arrAll = arrAll.filter((project) => !excludeArray.includes(project.key));
+    // inherit include json from app project and store locally if not exists
+    let includeArray = [];
+    if (!fs.existsSync(`${state.workingCopyFolder}/include.json`)) {
+      // eslint-disable-next-line global-require
+      includeArray = require('./include.json');
+      fs.writeFileSync('./include.json', JSON.stringify(includeArray, null, 2));
+    } else {
+      // load local include list
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      includeArray = require(`${state.workingCopyFolder}/include.json`);
+      // concat the keepup list so only the keepup list applies for this run
+      const keepUpFile = `${state.workingCopyFolder}keepUp.json`;
+      if (clargs.argv.keepUp && fs.existsSync(keepUpFile)) {
+        // eslint-disable-next-line import/no-dynamic-require, global-require
+        const keepupArray = require(keepUpFile);
+        if (keepupArray.length > 0) {
+          includeArray = includeArray.concat(keepupArray);
+          state.profile.autoUpdate = true;
+        }
+      }
+    }
+    if (includeArray.length > 1) {
+      arrAll = arrAll.filter((project) => includeArray.includes(project.key));
+    }
+    if (clargs.argv.component) {
+      arrAll = arrAll.filter((project) => project.key.toLowerCase().includes(clargs.argv.component.toLowerCase()));
+    }
+    arrAll.sort((a, b) => a.key.localeCompare(b.key));
+    // move _CONTINUOUS_DELIVERY to last position
+    if (arrAll.findIndex((p) => p.key === '_CONTINUOUS_DELIVERY') !== -1) {
+      arrAll.push(arrAll.shift());
+    }
+    if (clargs.argv.writeJsonFiles) {
+      fs.writeFileSync('./all.json', JSON.stringify(arrAll, null, 2));
+    }
+    let progressCounter = 1;
+    const processLookupResultList = await promises.processLookup({ command: 'Be Informed AMS.exe', psargs: state.app });
+    processLookupResultList.forEach((process) => {
+      // use -data argument to be more specific in determining when be informed is running
+      if (process && ((JSON.stringify(process.arguments).toLowerCase().includes('-data') && JSON.stringify(process.arguments).toLowerCase().includes(state.app.toLowerCase())) || (!JSON.stringify(process.arguments).toLowerCase().includes('-data') && !clargs.argv.forceSVN))) {
+        state.beInformedRunning = true;
+      }
+    });
+    const actions = [];
+    if (!clargs.argv.tagReport && !clargs.argv.tagReportExecution) { actions.push('   [M]issing project detection'); }
+    if (state.profile.autoSwitch && state.beInformedRunning) { actions.push('   [Š]witch detection'); }
+    if (state.profile.autoSwitch && !state.beInformedRunning) { actions.push('   [S]witch'); }
+    if (state.profile.autoUpdate && state.beInformedRunning) { actions.push('   [Ŭ]pdate detection'); }
+    if (state.profile.autoUpdate && !state.beInformedRunning) { actions.push('   [U]pdate'); }
+    if (state.profile.flyway && !clargs.argv.flywayValidateOnly) { actions.push('   [F]lyway'); }
+    if (state.profile.flyway && clargs.argv.flywayValidateOnly) { actions.push('   [F]lyway validate only'); }
+    if (state.profile.compareSpecific) { actions.push('   [C]ompare specific'); }
+    if (clargs.argv.deploymentCheck) { actions.push('   [D]eployment check'); }
+    if (clargs.argv.tagReport) { actions.push('   [T]ag report'); }
+    if (clargs.argv.tagReportExecution) { actions.push('   [T]ag report execution'); }
+    consoleLog.showBIRunningWarning(state.beInformedRunning);
+    // render capabilities
+    if (actions.length > 0) {
+      consoleLog.logNewLine('', 'gray');
+      consoleLog.logNewLine('actions legend: ', 'gray');
+    }
+    actions.forEach((action) => {
+      // consoleLog.logNewLine(action, 'gray');
+      consoleLog.logNewLine(' '.repeat(action.length - 2) + consoleLog.giveSpace(action, ' ') + action, 'cyan');
+    });
+    consoleLog.showLegend();
+    consoleLog.logNewLine('', 'gray');
+    const lengthLongestProjectNameMap = (key, array) => Math.max(...array.map((a) => a[key].length));
+    const lengthLongestProjectName = (lengthLongestProjectNameMap('key', /* in */ arrAll));
+    const spacer = '∙';
+    let dir;
+    // loop all folder in arrAll
+    const bEntryAction = !clargs.argv.componentToTrunk;
+    if (bEntryAction) {
+      for await (const entry of arrAll) {
+        // if startRow or startProject have been set: start from there, otherwise start from the first
+        if ((progressCounter >= clargs.argv.startRow) && (entry.key.toLowerCase() >= clargs.argv.startProject.toLowerCase())) {
+          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
+          consoleLog.logThisLine(` ${spacer.repeat(130 - lengthLongestProjectName - entry.key.length)}`, 'gray');
+          dir = anglo.unifyPath(state.workingCopyFolder) + entry.key;
+          const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(entry.key);
+          if (fs.existsSync(dir)) {
+            entry.found = true;
+            entry.path = entry.path.replace(/^\//, ''); // remove leading / from path if necessary
+            const componentContinuousDeliveryFolder = `${dir}/_CONTINUOUS_DELIVERY/DATABASE_MIGRATIONS/`;
+            entry.componentContinuousDeliveryFolderFound = (fs.existsSync(componentContinuousDeliveryFolder));
+            entry.generalContinuousDeliveryFolderFound = (entry.key === '_CONTINUOUS_DELIVERY');
+            entry.local_path = dir;
+            const resultInfo = await promises.svnInfoPromise(dirWithQuotedProjectName, svn.svnOptions);
+            entry.svninfo = resultInfo;
+            entry.local_project_repo = state.oSVNInfo.baseURL + entry.path;
+            const switchPath = state.oSVNInfo.baseURL + entry.path;
+            entry.match = (switchPath.toLowerCase() === decodeURI(resultInfo.entry.url).toLowerCase());
+            // switch if autoswtich enabled local and remote do not match
+            if (state.profile.autoSwitch) {
+              await subTaskSwitch.perform(entry);
+            } else {
+              // [S] not enabled
+            }
+            // update if autoUpdate enabled
+            if (state.profile.autoUpdate) {
+              await subTaskUpdate.perform(entry);
+            } else {
+              // [U] not enabled
+            }
+            // perform db migrations if flyway enabled and current project has a migration folder (component or general)
+            if (state.profile.flyway) {
+              await subTaskFlyway.perform(entry);
+            } else {
+              // flyway not enabled
+            }
+            // compare specific folder with reference specific
+            if (state.profile.compareSpecific) {
+              await subTaskCompareSpecific.perform(entry);
+            } else {
+              // compareSpecific not enabled
+            }
+            // perform deployment check on project
+            if (clargs.argv.deploymentCheck) {
+              await subTaskDeploymentCheck.perform(entry);
+            } else {
+              // deploymentCheck not enabled
+            }
+            // create a jira tag report for each component
+            if (clargs.argv.tagReport) {
+              await subTaskTagReport.perform(entry);
+            } else {
+              // tagReport not enabled
+            }
+            if (clargs.argv.tagReportExecution) {
+              await subTaskTagReportExecution.perform(entry);
+            } // tagReport exectuion not enabled
+          } else if (!clargs.argv.tagReport && !clargs.argv.tagReportExecution) {
+            anglo.memorable('[M]', state.arrMissingCollection, entry, state.oSVNInfo.baseURL + entry.path.replace(/^\//, '').key, 'green');
+            dir = state.workingCopyFolder + entry.key;
+            const url = state.oSVNInfo.baseURL + entry.path.replace(/^\//, ''); // remove leading / from path if necessary
+            const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`;
+            try {
+              await util.execCommand(execCommand);
+            } catch (error) {
+              console.dir('Errors while executing:', execCommand);// chalk.redBright(
+              beep(3);
+            }
+          }
+          consoleLog.logNewLine('', 'gray');
+        }
+        progressCounter += 1;
+      }
+    } else if (clargs.argv.componentToTrunk) {
+      await componentToTrunk.perform(arrAll);
+    }
+    const SummaryCount = (state.arrMissingCollection.length + state.arrSwitchUpdateCollection.length + state.arrSVNUpdatedCollection.length + state.arrFlywayUpdatedCollection.length + state.arrCompareSpecificUpdateCollection.length + state.arrSVNPotentialUpdateCollection.length + state.arrDeploymentCheckCollection.length + state.arrTagReportCollection.length);
+    if (SummaryCount > 0) {
+      consoleLog.logNewLine('', 'gray');
+      console.log('Summary:', SummaryCount.toString().trim(), `(potential) updates for ${state.app}`);
+      beep(2);
+    } else {
+      consoleLog.logNewLine('', 'gray');
+      consoleLog.logNewLine('Summary: ', 'gray');
+      consoleLog.logNewLine(`No significant updates for ${state.app}`, 'gray');
+    }
+    if (state.arrMissingCollection.length > 0) {
+      consoleLog.logNewLine(`${state.arrMissingCollection.length} [M]issing project(s): Choose "Import / General / Existing Projects into workspace" in Be Informed Studio`, 'red');
+    }
+    for (const entry of state.arrSwitchUpdateCollection) {
+      consoleLog.logNewLine(`SVN [S]witch: ${entry}`, 'green');
+    }
+    if (state.arrSwitchUpdateCollection.length > 0) {
+      consoleLog.logNewLine(`${state.arrSwitchUpdateCollection.length} [S]witched project(s) require a rebuild / validate in Be Informed.`, 'red');
+    }
+    for (const entry of state.arrSVNUpdatedCollection) {
+      consoleLog.logNewLine(`SVN [U]pdate: ${entry}`, 'green');
+    }
+    if (state.arrSVNUpdatedCollection.length > 0) {
+      consoleLog.logNewLine(`${state.arrSVNUpdatedCollection.length} [U]pdated project(s) require a rebuild / validate in Be Informed.`, 'red');
+    }
+    for (const entry of state.arrFlywayUpdatedCollection) {
+      consoleLog.logNewLine(`[F]lyway: ${entry}`, 'gray');
+    }
+    for (const entry of state.arrSVNPotentialUpdateCollection) {
+      consoleLog.logNewLine(`Potential [Ŭ]pdates: ${entry}`, 'cyan');
+    }
+    // store potential updates, so user can update the projects after closing bi using the --keepUp. After an actual update, empty
+    const keepUpFilename = `${state.workingCopyFolder}keepup.json`;
+    if (state.arrSVNPotentialUpdateCollection.length > 0) {
+      fs.writeFileSync(keepUpFilename, JSON.stringify(state.arrSVNPotentialUpdateCollection, null, 2));
+      if (state.profile.autoUpdate && fs.existsSync(keepUpFilename)) {
+        fs.unlinkSync(keepUpFilename);
+      }
+    }
+    if (state.arrCompareSpecificUpdateCollection.length > 0) {
+      consoleLog.logNewLine(`${state.arrCompareSpecificUpdateCollection.length} project for which the [C]ompare specific check failed. Manually investigate the inconsistencies.`, 'red');
+    }
+    if (state.arrDeploymentCheckCollection.length > 0) {
+      consoleLog.logNewLine(`${state.arrDeploymentCheckCollection.length} project for which the [D]eployment check failed. Tag the relevant externals projects.`, 'red');
+    }
+    if (state.arrDeploymentCheckCollection.length === 0 && clargs.argv.deploymentCheck) {
+      consoleLog.logNewLine('Deployment check positive: all externals have been tagged.', 'green');
+    }
+    if (clargs.argv.tagReport && state.arrTagReportCollection.length > 0) {
+      const issueCount = state.arrTagReportCollection.map((a) => a.jiraIssues.length).reduce((a, b) => a + b);
+      state.arrTagReportSolutionCollection.push({
+        solution: state.currentSolution.name,
+        toBeTagged: state.oSolution.toBeTagged,
+        previousTagNumber: state.oSolution.previous.tagNumber,
+        previousTagRevisionNumber: state.oSolution.previous.tagRevisionNumber,
+        currentTagNumber: state.oSolution.current.tagNumber,
+        currentTagRevisionNumber: state.oSolution.current.tagRevisionNumber,
+        tagName: Object.prototype.hasOwnProperty.call(state.oSolution, 'future') ? `${state.currentSolution.functionalName} ${state.oSolution.future.tagNumber}` : `${state.currentSolution.functionalName} ${state.oSolution.current.tagNumber}`,
+        tagNumber: Object.prototype.hasOwnProperty.call(state.oSolution, 'future') ? state.oSolution.future.tagNumber : state.oSolution.current.tagNumber,
+        tagBaseUrl: state.oSolution.current.tagBaseUrl,
+        tagSourceUrl: state.oSolution.current.tagUrl,
+        tagTargetUrl: Object.prototype.hasOwnProperty.call(state.oSolution, 'future') ? state.oSolution.future.tagUrl : state.oSolution.current.tagNumber,
+        numberOfComponents: state.arrTagReportCollection.length,
+        numberOfJiraIssues: issueCount,
+        componentCollection: state.arrTagReportCollection,
+      });
+      const filenameEnvironmentPart = state.oSVNInfo.remoteRepo.substring(state.oSVNInfo.remoteRepo.indexOf('/svn/') + 5).replaceAll('/', '_').replaceAll('.', '_').toLowerCase();
+      const tagReportFilename = `${state.workingCopyFolder}tagreport_${filenameEnvironmentPart}`;
+      if (state.arrTagReportCollection && state.arrTagReportCollection.length > 0 && issueCount && issueCount > 0) {
+        consoleLog.logNewLine(`Tag report has been stored as ${tagReportFilename}.json. It contains ${state.arrTagReportCollection.length} components and ${issueCount} issues`, 'gray');
+      }
+      // write (append to new or existing file)
+      fs.writeFileSync(`${tagReportFilename}.json`, JSON.stringify(state.arrTagReportSolutionCollection, null, 2));
+      const newWB = xlsx.utils.book_new();
+      const excelProjectArray = state.arrTagReportCollection.map(({
+        jiraProjects, jiraIssues, wasAlreadyTagged, isMajor, ...keepAttrs
+      }) => keepAttrs);
+      const objProject = excelProjectArray.map((e) => e);
+      try {
+        const newWSProject = xlsx.utils.json_to_sheet(objProject);
+        const excelJiraArray = state.arrOverallJiraCollection.map(({ commitMessages, ...keepAttrs }) => keepAttrs);
+        const objIssue = excelJiraArray.map((e) => e);
+        const newWSIssue = xlsx.utils.json_to_sheet(objIssue);
+        xlsx.utils.book_append_sheet(newWB, newWSProject, 'components');
+        xlsx.utils.book_append_sheet(newWB, newWSIssue, 'issues');
+        xlsx.writeFile(newWB, `${tagReportFilename}.xlsx`);// file name as param
+      } catch (error) {
+        console.dir('Errors while exporting to excel. Is file closed?');
+        beep(3);
+      }
+    }
+    consoleLog.showBIRunningWarning(state.beInformedRunning);
+  } catch (error) {
+    // console.log(error)
+    console.log('Errors occurred:', error);// chalk.redBright(
+    beep(3);
+  }
+  process.stdout.write('\n');
+  process.exit(0);
+}
+async function prequal() {
+  let sequenceNumber = await anglo.getProfileSequenceNumber();
+  let isFirstTimeUse;
+  if (sequenceNumber === 0) {
+    isFirstTimeUse = true;
+    sequenceNumber = 1;
+  }
+  // svn context
+  state.oSVNInfo = await svn.getSVNContext(state.app, state.workingCopyFolder);
+  if (isFirstTimeUse) {
+    consoleLog.renderTitle();
+    const questions = [
+      {
+        type: 'confirm',
+        name: 'autoSwitch',
+        message: 'SVN: Would you like to automatically [S]witch to the correct external locations? ',
+        default: true,
+      },
+      {
+        type: 'confirm',
+        name: 'autoUpdate',
+        message: 'SVN: Would you like to automatically [U]pdate your project folders? ',
+        default: true,
+      },
+      {
+        type: 'input',
+        name: 'svnOptionsUsername',
+        default: clargs.argv.svnOptionsUsername,
+        message: "SVN: Optionally provide your SVN user name. It's usually in the format 'xxx.xxxx' or 'ext-xxx.xxxx', for example 'ext-jane.doe' ",
+        when: (answers) => answers.autoSwitch || answers.autoUpdate,
+      },
+      {
+        type: 'input',
+        name: 'svnOptionsPassword',
+        default: clargs.argv.svnOptionsPassword,
+        message: 'SVN: Please provide your SVN password. ',
+        when: (answers) => answers.svnOptionsUsername && (answers.autoSwitch || answers.autoUpdate),
+      },
+      {
+        type: 'input',
+        name: 'jiraUsername',
+        default: clargs.argv.jiraUsername,
+        message: 'Jira: Provide your JIRA user name.',
+        when: (answers) => answers || clargs.argv.enableJiraIntegration,
+      },
+      {
+        type: 'input',
+        name: 'jiraPassword',
+        default: clargs.argv.svnOptionsPassword,
+        message: 'Jira: Please provide your JIRA password. ',
+        when: (answers) => clargs.argv.enableJiraIntegration && answers.jiraUsername,
+      },
+      {
+        type: 'confirm',
+        name: 'flyway',
+        message: `Flyway: ${state.oAppContext.descriptiveName} is able to execute general and component-level Flyway scripts. Would you like to enable [F]lyway integration? `,
+        default: true,
+      },
+      {
+        type: 'input',
+        name: 'flywayPath',
+        default: 'c:/fw/',
+        message: "Flyway: Please provide the path to the folder where the Flyway binary (flyway) resides. Use forward slashes, for example 'c:/fw/' ",
+        when: (answers) => answers.flyway,
+      },
+      {
+        type: 'input',
+        name: 'flywayDatabaseServer',
+        default: 'localhost',
+        message: `Flyway: To store Flyway history, ${state.oAppContext.descriptiveName} needs information about the database server. On which machine (or host) is the SQL Server running. Most likely, this is 'localhost' `,
+        when: (answers) => answers.flyway,
+      },
+      {
+        type: 'input',
+        name: 'flywayDatabaseServerPort',
+        default: '1433',
+        message: 'Flyway: By default, SQL Server runs on port 1433. Just press enter if that is the case, otherwise provide an alternate port number ',
+        when: (answers) => answers.flyway,
+      }, {
+        type: 'input',
+        name: 'flywayDatabaseName',
+        default: `aia_${state.app}`,
+        message: `Flyway: In which database should Flyway register its history? For example 'aia_${state.app}' `,
+        when: (answers) => answers.flyway,
+      },
+      {
+        type: 'input',
+        name: 'flywayDatabaseUsername',
+        default: 'sa',
+        message: `Flyway: What database user can ${state.oAppContext.descriptiveName} use to access the database? For example 'sa' `,
+        when: (answers) => answers.flyway,
+      },
+      {
+        type: 'input',
+        name: 'flywayDatabasePassword',
+        default: '1',
+        message: `Flyway: What database password can ${state.oAppContext.descriptiveName} use to access the database? Default: '1' `,
+        when: (answers) => answers.flyway,
+      },
+      {
+        type: 'confirm',
+        name: 'compareSpecific',
+        message: `Specific compare: ${state.oAppContext.descriptiveName} can [C]ompare your specific projects with specific projects in another repository. Would you like to enable this feature? `,
+        default: false,
+      },
+      {
+        type: 'input',
+        name: 'compareSpecificRootFolder',
+        default: `c:/repo/${state.app}_anguilla_21/`,
+        message: `Specific compare: Please provide the path to the root of another workspace folder. Use forward slashes, for example 'c:/repo/${state.app}_anguilla_21/'`,
+        when: (answers) => answers.compareSpecific,
+      },
+      {
+        type: 'confirm',
+        name: 'verbose',
+        message: `Verbose output: ${state.oAppContext.descriptiveName} can output more detailed process information, for example about (potential) SVN updates, flyway operations and specific comparisons. Would you like to enable this feature? `,
+        default: false,
+      }];
+    inquirer
+      .prompt(questions)
+      .then((answers) => {
+        if (db.checkdb(answers)) {
+          const profileFilename = `${state.workingCopyFolder}profile_${sequenceNumber}.json`;
+          // workaround: if password contains problematic characters then remove svn username and password. User then has to login once, manually
+          if ((answers.svnOptionsUsername && answers.svnOptionsUsername.includes('"')) || (answers.svnOptionsPassword && answers.svnOptionsPassword.includes('"'))) {
+            // eslint-disable-next-line no-param-reassign
+            delete answers.svnOptionsUsername;
+            // eslint-disable-next-line no-param-reassign
+            delete answers.svnOptionsPassword;
+          }
+          fs.writeFileSync(profileFilename, JSON.stringify(answers, null, 2));
+          consoleLog.logNewLine('', 'gray');
+          consoleLog.logNewLine(`Your profile has been stored as ${profileFilename}. ${state.oAppContext.descriptiveName} will now continue its operation with this profile.`, 'gray');
+          consoleLog.logNewLine('', 'gray');
+          state.profile = answers;
+          state.profile.filename = profileFilename;
+          main();
+        } else {
+          console.log('Unable to access database');
+          beep(2);
+          process.exit();
+        }
+      })
+      .catch((error) => {
+        if (error.isTtyError) {
+          console.log('Your console environment is not supported!');
+        } else {
+          console.dir(error);
+        }
+      });
+  } else if (clargs.argv.select) {
+    consoleLog.renderTitleToVersion();
+    const svnToVersionTagsChoices = await promises.svnListPromise(`${state.oSVNInfo.appRoot}/tags`);
+    const qTags = svnToVersionTagsChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'tags/'.concat(b.name));
+    const svnToVersionBranchesChoices = await promises.svnListPromise(`${state.oSVNInfo.appRoot}/branches`);
+    const qBranches = svnToVersionBranchesChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'branches/'.concat(b.name));
+    const qarrToVersion = qBranches.concat(qTags);
+    qarrToVersion.push('trunk');
+    const questionsToVersion = [
+      {
+        type: 'list',
+        name: 'selectedSVNVersion',
+        message: 'Pick a version, any version.',
+        choices: qarrToVersion,
+        default: state.oSVNInfo.currentVersion,
+      }];
+    await inquirer
+      .prompt(questionsToVersion)
+      .then((answersToVersion) => {
+        state.oSVNInfo.remoteRepo = state.oSVNInfo.appRoot + answersToVersion.selectedSVNVersion;
+        const urlParts = state.oSVNInfo.remoteRepo.split('/');
+        state.oSVNInfo.angloSVNPath = urlParts[urlParts.length - 1];
+        state.oSVNInfo.repo = urlParts[urlParts.length - 2];
+        state.oSVNInfo.svnAndApp = `/svn/${urlParts[urlParts.length - 3]}/`;
+        const fn = 'profile_1.json';
+        // eslint-disable-next-line import/no-dynamic-require, global-require
+        state.profile = require(path.normalize(state.workingCopyFolder + fn));
+        state.profile.filename = fn;
+        svn.getSVNContext(state.app, state.workingCopyFolder, answersToVersion.selectedSVNVersion);
+        main();
+      })
+      .catch((error) => {
+        if (error.isTtyError) {
+          console.log('Your console environment is not supported!');
+        } else {
+          console.dir(error);
+        }
+      });
+  } else {
+    if (Object.prototype.hasOwnProperty.call(clargs.argv, 'profile') && (clargs.argv.profile.length > 0)) {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      state.profile = require(path.normalize(state.workingCopyFolder + clargs.argv.profile));
+      state.profile.filename = clargs.argv.profile;
+    } else {
+      const fn = 'profile_1.json';
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      state.profile = require(path.normalize(state.workingCopyFolder + fn));
+      state.profile.filename = fn;
+    }
+    main();
+  }
+  // perform action related checks
+  if ((clargs.argv.tagReport) && (!state.profile.jiraUsername || !state.profile.jiraUsername)) {
+    console.log('Specify jiraUsername / jiraUsername in active profile or as command line argument');
+    process.exit();
+  }
+}
 clear();
 prequal();
-async function prequal() {
-    var sequenceNumber = await getProfileSequenceNumber();
-    var isFirstTimeUse;
-    if (sequenceNumber === 0) {
-        isFirstTimeUse = true;
-        sequenceNumber = 1;
-    }
-    //svn context
-    const oSVNInfo = await getSVNContext(app, workingCopyFolder);
-    timestampStart = oSVNInfo.remoteRepo.substring(oSVNInfo.remoteRepo.indexOf('/svn/') + 5).replaceAll('/', '_').replaceAll('.', '_').toLowerCase();
-    if (isFirstTimeUse) {
-        renderTitle();
-        const questions = [
-            {
-                type: "confirm",
-                name: "autoSwitch",
-                message: "SVN: Would you like to automatically [S]witch to the correct external locations? ",
-                default: true
-            },
-            {
-                type: "confirm",
-                name: "autoUpdate",
-                message: "SVN: Would you like to automatically [U]pdate your project folders? ",
-                default: true
-            },
-            {
-                type: "input",
-                name: "svnOptionsUsername",
-                default: argv.svnOptionsUsername,
-                message: "SVN: Optionally provide your SVN user name. It's usually in the format 'xxx.xxxx' or 'ext-xxx.xxxx', for example 'ext-jane.doe' ",
-                when: (answers) => answers.autoSwitch || answers.autoUpdate
-            },
-            {
-                type: "input",
-                name: "svnOptionsPassword",
-                default: argv.svnOptionsPassword,
-                message: "SVN: Please provide your SVN password. ",
-                when: (answers) => answers.svnOptionsUsername && (answers.autoSwitch || answers.autoUpdate)
-            },
-            {
-                type: "input",
-                name: "jiraUsername",
-                default: argv.jiraUsername,
-                message: "Jira: Provide your JIRA user name.",
-                when: (answers) => argv.enableJiraIntegration
-            },
-            {
-                type: "input",
-                name: "jiraPassword",
-                default: argv.svnOptionsPassword,
-                message: "Jira: Please provide your JIRA password. ",
-                when: (answers) => argv.enableJiraIntegration && answers.jiraUsername
-            },
-            {
-                type: "confirm",
-                name: "flyway",
-                message: "Flyway: " + oAppContext.descriptiveName + " is able to execute general and component-level Flyway scripts. Would you like to enable [F]lyway integration? ",
-                default: true
-            },
-            {
-                type: "input",
-                name: "flywayPath",
-                default: "c:/fw/",
-                message: "Flyway: Please provide the path to the folder where the Flyway binary (flyway) resides. Use forward slashes, for example 'c:/fw/' ",
-                when: (answers) => answers.flyway
-            },
-            {
-                type: "input",
-                name: "flywayDatabaseServer",
-                default: "localhost",
-                message: "Flyway: To store Flyway history, " + oAppContext.descriptiveName + " needs information about the database server. On which machine (or host) is the SQL Server running. Most likely, this is 'localhost' ",
-                when: (answers) => answers.flyway
-            },
-            {
-                type: "input",
-                name: "flywayDatabaseServerPort",
-                default: "1433",
-                message: "Flyway: By default, SQL Server runs on port 1433. Just press enter if that is the case, otherwise provide an alternate port number ",
-                when: (answers) => answers.flyway
-            }, {
-                type: "input",
-                name: "flywayDatabaseName",
-                default: "aia_" + app,
-                message: "Flyway: In which database should Flyway register its history? For example 'aia_" + app + "' ",
-                when: (answers) => answers.flyway
-            },
-            {
-                type: "input",
-                name: "flywayDatabaseUsername",
-                default: "sa",
-                message: "Flyway: What database user can " + oAppContext.descriptiveName + " use to access the database? For example 'sa' ",
-                when: (answers) => answers.flyway
-            },
-            {
-                type: "input",
-                name: "flywayDatabasePassword",
-                default: "1",
-                message: "Flyway: What database password can " + oAppContext.descriptiveName + " use to access the database? Default: '1' ",
-                when: (answers) => answers.flyway
-            },
-            {
-                type: "confirm",
-                name: "compareSpecific",
-                message: "Specific compare: " + oAppContext.descriptiveName + " can [C]ompare your specific projects with specific projects in another repository. Would you like to enable this feature? ",
-                default: false
-            },
-            {
-                type: "input",
-                name: "compareSpecificRootFolder",
-                default: "c:/repo/" + app + "_anguilla_21/",
-                message: "Specific compare: Please provide the path to the root of another workspace folder. Use forward slashes, for example 'c:/repo/" + app + "_anguilla_21/'",
-                when: (answers) => answers.compareSpecific
-            },
-            {
-                type: "confirm",
-                name: "verbose",
-                message: "Verbose output: " + oAppContext.descriptiveName + " can output more detailed process information, for example about (potential) SVN updates, flyway operations and specific comparisons. Would you like to enable this feature? ",
-                default: false
-            },]
-        inquirer
-            .prompt(questions)
-            .then((answers) => {
-                if (checkdb(answers)) {
-                    var filename = workingCopyFolder + "profile_" + sequenceNumber + ".json";
-                    //workaround: if password contains problematic characters then remove svn username and password. User then has to login once, manually
-                    if (answers.svnOptionsUsername && answers.svnOptionsUsername.includes('"') || answers.svnOptionsPassword && answers.svnOptionsPassword.includes('"')) {
-                        delete answers.svnOptionsUsername;
-                        delete answers.svnOptionsPassword;
-                    }
-                    fs.writeFile(filename, JSON.stringify(answers, null, 2), function (err) { });
-                    logNewLine('', 'gray');
-                    logNewLine('Your profile has been stored as ' + filename + '. ' + oAppContext.descriptiveName + ' will now continue its operation with this profile.', 'gray');
-                    logNewLine('', 'gray');
-                    answers.filename = filename;
-                    profile = answers;
-                    main(profile, oSVNInfo);
-                } else {
-                    console.log("Unable to access database")
-                    beep(2);
-                    process.exit()
-                }
-            })
-            .catch((error) => {
-                if (error.isTtyError) {
-                    console.log("Your console environment is not supported!")
-                } else {
-                    console.dir(error)
-                }
-            })
-    } else if (argv.select) {
-        renderTitleToVersion();
-        const svnToVersionTagsChoices = await svnListPromise(oSVNInfo.appRoot + '/tags');
-        let qTags = svnToVersionTagsChoices.list.entry.filter(q => !q.name.startsWith('cd_')).slice(-0).map(b => 'tags/'.concat(b.name));
-
-        const svnToVersionBranchesChoices = await svnListPromise(oSVNInfo.appRoot + '/branches');
-        let qBranches = svnToVersionBranchesChoices.list.entry.filter(q => !q.name.startsWith('cd_')).slice(-0).map(b => 'branches/'.concat(b.name));
-        let qarrToVersion = qBranches.concat(qTags);
-        qarrToVersion.push('trunk');
-        const questionsToVersion = [
-            {
-                type: "list",
-                name: "selectedSVNVersion",
-                message: "Pick a version, any version.",
-                choices: qarrToVersion,
-                default: oSVNInfo.currentVersion
-            },]
-        await inquirer
-            .prompt(questionsToVersion)
-            .then((answersToVersion) => {
-                oSVNInfo.remoteRepo = oSVNInfo.appRoot + answersToVersion.selectedSVNVersion
-                var urlParts = oSVNInfo.remoteRepo.split('/');
-                oSVNInfo.angloSVNPath = urlParts[urlParts.length - 1];
-                oSVNInfo.repo = urlParts[urlParts.length - 2];
-                oSVNInfo.svnAndApp = '/svn/' + urlParts[urlParts.length - 3] + '/';
-                var fn = 'profile_1.json';
-                profile = require(path.normalize(workingCopyFolder + fn))
-                profile.filename = fn;
-                getSVNContext(app, workingCopyFolder, answersToVersion.selectedSVNVersion)
-                main(profile, oSVNInfo);
-            })
-            .catch((error) => {
-                if (error.isTtyError) {
-                    console.log("Your console environment is not supported!")
-                } else {
-                    console.dir(error)
-                }
-            })
-    } else if (argv.componentToTrunk) {
-        componentToTrunk.perform(arrSVNExternalsCurrentSolutionTag);
-    }
-    else {
-        if ((argv.hasOwnProperty('profile')) && (argv.profile.length > 0)) {
-            profile = require(path.normalize(workingCopyFolder + argv.profile))
-            profile.filename = argv.profile;
-        }
-        else {
-            var fn = 'profile_1.json';
-            profile = require(path.normalize(workingCopyFolder + fn))
-            profile.filename = fn;
-        }
-        main(profile, oSVNInfo);
-    }
-
-    //perform action related checks
-    if ((argv.tagReport) && (!profile.jiraUsername || !profile.jiraUsername)) {
-        console.log('Specify jiraUsername / jiraUsername in active profile or as command line argument')
-        process.exit();
-    }
-}
-async function main(profile, oSVNInfo) {
-    try {
-        const angloSVNPath = oSVNInfo.angloSVNPath;
-        const repo = oSVNInfo.repo;
-        const baseURL = oSVNInfo.baseURL;
-        const appRoot = oSVNInfo.appRoot;
-        let remoteRepo = oSVNInfo.remoteRepo; //.replace('MBS','MbS');
-        let svnAndApp = oSVNInfo.svnAndApp;
-        let svnOptions = { trustServerCert: true };
-        //if provided, add username and password to the svn options
-        if (profile.svnOptionsUsername && profile.svnOptionsPassword) {
-            svnOptions.username = profile.svnOptionsUsername
-            svnOptions.password = profile.svnOptionsPassword
-        };
-        //add domain to profile so it can be left out of the source
-        if (!profile.domain && fs.existsSync(profile.filename)) {
-            profile.domain = oSVNInfo.URL.split('/')[2].split('.').splice(-2).join('.')
-            data = fs.readFileSync(profile.filename);
-            var json = JSON.parse(data)
-            json.domain = profile.domain;
-            fs.writeFileSync(profile.filename, JSON.stringify(json))
-        }
-        //handle command line switch to profile overrides
-        if (argv.switch) profile.autoSwitch = argv.switch;
-        if (argv.update) profile.autoUpdate = argv.update;
-        if (argv.flyway && profile.flywayPath) profile.flyway = argv.flyway;
-        if (argv.flywayValidateOnly) profile.verbose = argv.flywayValidateOnly;
-        if (argv.compare && profile.compareSpecificRootFolder) profile.compareSpecific = argv.compare;
-        if (argv.verbose) profile.verbose = argv.verbose;
-        if (argv.tagReport || argv.tagReportExecution || argv.deploymentCheck) profile.autoSwitch = false, profile.autoUpdate = false, profile.flyway = false, profile.compareSpecific = false, profile.verbose = true;
-        if (argv.select) profile.autoSwitch = true, profile.autoUpdate = true
-
-
-        //if (argv.tagReport) {
-        //gather information about current solution for the tag report
-        currentSolution = arrSolutions.find(s => s.name === oSVNInfo.svnApp);
-        //oPreviousSolutionTag = await getTag(`${oSVNInfo.remoteRepo}`);
-        //oCurrentSolutionTag = (oSVNInfo.angloSVNPath!=='trunk')?await getTag(oSVNInfo.remoteRepo,{currentTag:true}):{tagRevisionNumber:'HEAD',tagUrl:oSVNInfo.remoteRepo}
-
-        oSolution = await getTag(`${oSVNInfo.remoteRepo}`);
-
-        //};
-
-        let arrAll = [];
-        let s;
-        let sp = ' ';
-        s = 'project folder';
-        logNewLine(s + ':' + giveSpace(s, sp) + embrace(workingCopyFolder.toLowerCase()), 'cyan');
-        s = 'repo';
-        logNewLine(s + ':' + giveSpace(s, sp) + embrace(remoteRepo.toLowerCase()), 'cyan');
-        s = 'application';
-        logNewLine(s + ':' + giveSpace(s, sp) + embrace(app), 'cyan');
-        s = 'profile';
-        logNewLine(s + ':' + giveSpace(s, sp) + '[' + profile.filename + ':' + ' [S]witch]:' + profile.autoSwitch + ' | [U]pdate:' + profile.autoUpdate + ' | [F]lyway:' + profile.flyway + ' | [C]ompare specific:' + profile.compareSpecific, 'cyan');
-        s = oAppContext.descriptiveName.toLowerCase() + ' version';
-        logNewLine(s + ':' + giveSpace(s, sp) + embrace(oAppContext.version), 'cyan');
-        if ((repo.includes('branches') || (repo.includes('tags'))) && profile.flyway && !argv.flyway) {
-            profile.flyway = false;
-            logNewLine('', 'white');
-            logNewLine("The current workspace points to a tag/branch. " + oAppContext.descriptiveName + " disabled profile setting 'Flyway', as it might have undesireable effects on the database. To enable, use command line option --flyway.", 'red')
-        }
-        if (true) { //profile.autoSwitch || profile.autoUpdate || argv.select
-            //get externals
-            logNewLine('', 'gray');
-            //let svn_externals = [];
-
-            let arrInternalsFilter = [];
-
-            logNewLine(`getting externals from current solution ${oSolution.current.tagNumber}`, 'gray');
-            //remoteRepo = "https://svn.bearingpointcaribbean.com/svn/MBS_ANGUILLA/tags/1.8.3"
-            arrSVNExternalsCurrentSolutionTag = await getArrExternals(oSolution.current.tagUrl, svnOptions);
-            fs.writeFileSync("./current_externals_raw.json", JSON.stringify(arrSVNExternalsCurrentSolutionTag, null, 2));
-
-            if (argv.tagReport) {
-
-                logNewLine(`getting externals from previous solution ${oSolution.previous.tagNumber}`, 'gray');
-                //oPreviousSolutionTag.tagUrl = "https://svn.bearingpointcaribbean.com/svn/MBS_ANGUILLA/tags/1.8.0"
-                arrSVNExternalsPreviousSolutionTag = await getArrExternals(oSolution.previous.tagUrl, svnOptions); //oPreviousSolutionTag.tagUrl
-                fs.writeFileSync("./previous_externals_raw.json", JSON.stringify(arrSVNExternalsPreviousSolutionTag, null, 2));
-
-                // logNewLine('getting externals from solution trunk', 'gray');
-                // arrSVNExternalsCurrentSolutionTag=await getArrExternals(remoteRepo);
-
-                logNewLine(`determine difference between ${oSolution.previous.tagNumber} and ${oSolution.current.tagNumber}`, 'gray');
-                //difference
-                arrExt = arrSVNExternalsCurrentSolutionTag.filter(x => !arrSVNExternalsPreviousSolutionTag.includes(x));
-                fs.writeFileSync("./externals_difference_raw.json", JSON.stringify(arrSVNExternalsPreviousSolutionTag, null, 2));
-                //intersection: result can be used as filter on internals since we want ALL internals except for the ones that correspond with unmodified tagged components 
-                arrIntFilter = arrSVNExternalsCurrentSolutionTag.filter(x => arrSVNExternalsPreviousSolutionTag.includes(x));
-                fs.writeFileSync("./externals_insersection_raw.json", JSON.stringify(arrSVNExternalsPreviousSolutionTag, null, 2));
-
-                arrIntFilter.forEach(function (entry) {
-                    var name
-                    if (entry.includes('\'')) {
-                        var item = entry.split(" '");
-                    } else {
-                        var item = entry.split(" ");
-                    }
-                    var path = item[0];
-                    if (item.length === 2) {
-                        name = item[1].replace(/[']/g, '');
-                    }
-                    else if (item.length === 1) {
-                        name = item[0];
-                    }
-
-                    if (name !== "") {
-                        arrInternalsFilter.push({
-                            key: name
-                        })
-                    };
-                });
-
-
-            } else {
-                //logNewLine('getting externals', 'gray');
-                //svn_externals = await svnPropGetPromise('svn:externals', remoteRepo, svnOptions);                
-                arrExt = arrSVNExternalsCurrentSolutionTag
-            }
-
-            arrSVNExternalsPreviousSolutionTag.forEach(function (entry) {
-                var name
-                if (entry.includes('\'')) {
-                    var item = entry.split(" '");
-                } else {
-                    var item = entry.split(" ");
-                }
-                var path = item[0];
-                if (item.length === 2) {
-                    name = item[1].replace(/[']/g, '');
-                }
-                else if (item.length === 1) {
-                    name = item[0];
-                }
-
-                //for componentBaseFolder. If domain-specific, keep first 3, else keep first 4 parts
-                let partsToKeep = (name.toLowerCase().startsWith('dsc')) ? 4 : 5
-
-                if (name !== "") {
-                    arrPreviousExternals.push({
-                        key: name,
-                        path: decodeURI(path),
-                        version: entry.split('/')[entry.split('/').length - 2],
-                    })
-                };
-            });
-
-
-            var arrExternals = [];
-            arrExt.forEach(function (entry) {
-                var name
-                if (entry.includes('\'')) {
-                    var item = entry.split(" '");
-                } else {
-                    var item = entry.split(" ");
-                }
-                var path = item[0];
-                if (item.length === 2) {
-                    name = item[1].replace(/[']/g, '');
-                }
-                else if (item.length === 1) {
-                    name = item[0];
-                }
-
-                //for componentBaseFolder. If domain-specific, keep first 3, else keep first 4 parts
-                let partsToKeep = (name.toLowerCase().startsWith('dsc')) ? 4 : 5
-
-                if (name !== "") {
-                    arrExternals.push({
-                        key: name,
-                        path: decodeURI(path),
-                        componentBaseFolder: decodeURI(path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
-                        componentName: getComponentName(decodeURI(path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')),
-                        isExternal: true,
-                        isCoreComponent: !name.toLowerCase().includes('interface def'),
-                        isInterfaceDefinition: name.toLowerCase().includes('interface def'),
-                        isSpecific: name.toLowerCase().includes('specific'),
-                        isDomainSpecific: name.toLowerCase().startsWith('dsc'),
-                        isSolutionComponent: name.toLowerCase().startsWith('sc'),
-                        isTagged: decodeURI(path).toLocaleLowerCase().includes('/tags/'),
-                        isBranched: decodeURI(path).toLocaleLowerCase().includes('/branches/'),
-                        isTrunk: decodeURI(path).toLocaleLowerCase().includes('/trunk/')
-                    })
-                };
-            });
-            if (argv.writeJsonFiles) {
-                fs.writeFileSync("./externals.json", JSON.stringify(arrExternals, null, 2));
-            }
-            //get internals
-            const svn_internals = await svnListPromise(oSolution.current.tagUrl);
-            logNewLine('getting internals', 'gray');
-            svn_internals.list.entry.forEach(function (entry) {
-                delete entry.$;
-                delete entry.commit;
-                delete Object.assign(entry, { ['key']: entry['name'] })['name'];
-                entry.isInternal = true;
-                entry.isCoreComponent = false;
-                entry.isInterfaceDefinition = false;
-                entry.isSpecific = entry.key.toLowerCase().includes('specific');
-                entry.isDomainSpecific = entry.key.toLowerCase().startsWith('dsc');
-                entry.isSolutionComponent = entry.key.toLowerCase().startsWith('sc');
-                entry.path = svnAndApp + repo + '/' + angloSVNPath + '/' + entry.key;
-                entry.componentName = entry.key;
-
-                entry.componentBaseFolder = svnAndApp + repo + '/' + angloSVNPath + '/' + entry.key;
-
-                isTagged = decodeURI(entry.path).toLocaleLowerCase().includes('/tags/');
-                isBranched = decodeURI(entry.path).toLocaleLowerCase().includes('/branches/');
-                isTrunk = decodeURI(entry.path).toLocaleLowerCase().includes('/trunk/');
-            });
-            let arrInternals = svn_internals.list.entry;
-            //svn_internals.filter() => {arrInternalsFilter}
-            arrNewInternals = arrInternals.filter(x => arrInternalsFilter.find(y => (y.key !== x.key.replace(new RegExp(" - specific", "ig"), ''))));
-            if (argv.writeJsonFiles) {
-                fs.writeFileSync("./internals.json", JSON.stringify(arrInternals, null, 2));
-            }
-            //combine external and interal arrays, but filter empty elements
-            arrAll = arrExternals.concat(arrInternals);
-            // tagreportexecution: limit the projects to those stored in the tagreport
-            if (argv.tagReportExecution) {
-                var tagReportArray = [];
-                var fn = argv.tagReportExecution;
-                if (fs.existsSync(path.normalize(workingCopyFolder + fn))) {
-                    tagReportArray = require(path.normalize(workingCopyFolder + fn))
-                }
-                arrAll = arrAll.filter(x => tagReportArray[0].componentCollection.find(y => (y.component == x.componentName)));
-            }
-            // inherit exclude json from app project and store locally if not exists
-            var excludeArray = [];
-            if (!fs.existsSync(workingCopyFolder + '/exclude.json')) {
-                excludeArray = require('./exclude.json');
-                fs.writeFileSync("./exclude.json", JSON.stringify(excludeArray, null, 2));
-            } else {
-                // load local exclude list
-                excludeArray = require(workingCopyFolder + '/exclude.json');
-            }
-            //apply to combined array 
-            arrAll = arrAll.filter(project => !excludeArray.includes(project.key))
-            // inherit include json from app project and store locally if not exists
-            var includeArray = [];
-            if (!fs.existsSync(workingCopyFolder + '/include.json')) {
-                includeArray = require('./include.json');
-                fs.writeFileSync("./include.json", JSON.stringify(includeArray, null, 2));
-            } else {
-                // load local include list
-                includeArray = require(workingCopyFolder + '/include.json');
-                // concat the keepup list so only the keepup list applies for this run
-                keepUpFile = workingCopyFolder + 'keepUp.json'
-                if (argv.keepUp && fs.existsSync(keepUpFile)) {
-                    keepupArray = require(keepUpFile);
-                    if (keepupArray.length > 0) {
-                        includeArray = includeArray.concat(keepupArray);
-                        profile.autoUpdate = true;
-                    }
-                }
-            }
-            if (includeArray.length > 1) {
-                arrAll = arrAll.filter(project => includeArray.includes(project.key))
-            }
-            if (argv.component) {
-                arrAll = arrAll.filter(project => project.key.toLowerCase().includes(argv.component.toLowerCase()))
-            }
-            arrAll.sort((a, b) => a.key.localeCompare(b.key))
-            // move _CONTINUOUS_DELIVERY to last position
-            if (profile.flyway || true) {
-                if (arrAll.findIndex(p => p.key == "_CONTINUOUS_DELIVERY") != -1) {
-                    arrAll.push(arrAll.shift());
-                }
-            }
-            if (argv.writeJsonFiles) {
-                fs.writeFileSync("./all.json", JSON.stringify(arrAll, null, 2));
-            }
-        } else {
-            arrAll = require(workingCopyFolder + "./all.json")
-        }
-        let loop_len = arrAll.length;
-        let startTime = new Date();
-        var progressCounter = 1;
-        const processLookupResultList = await processLookup({ command: 'Be Informed AMS.exe', psargs: app })
-        let beInformedRunning = false;
-        processLookupResultList.forEach(function (process) {
-            //use -data argument to be more specific in determining when be informed is running
-            if (process && (JSON.stringify(process.arguments).toLowerCase().includes('-data') && JSON.stringify(process.arguments).toLowerCase().includes(app.toLowerCase()) || !JSON.stringify(process.arguments).toLowerCase().includes('-data')) && !argv.forceSVN) {
-                beInformedRunning = true
-            }
-        })
-        let actions = [];
-        if (!argv.tagReport && !argv.tagReportExecution) { actions.push('   [M]issing project detection') };
-        if (profile.autoSwitch && beInformedRunning) { actions.push(`   [Š]witch detection`) };
-        if (profile.autoSwitch && !beInformedRunning) { actions.push('   [S]witch') };
-        if (profile.autoUpdate && beInformedRunning) { actions.push(`   [Ŭ]pdate detection`) };
-        if (profile.autoUpdate && !beInformedRunning) { actions.push('   [U]pdate') };
-        if (profile.flyway && !argv.flywayValidateOnly) { actions.push('   [F]lyway') };
-        if (profile.flyway && argv.flywayValidateOnly) { actions.push('   [F]lyway validate only') };
-        if (profile.compareSpecific) { actions.push('   [C]ompare specific') };
-        if (argv.deploymentCheck) { actions.push('   [D]eployment check') };
-        if (argv.tagReport) { actions.push('   [T]ag report') };
-        if (argv.tagReportExecution) { actions.push('   [T]ag report execution') };
-        showBIRunningWarning(beInformedRunning);
-        // render capabilities
-        if (actions.length > 0) {
-            logNewLine('', 'gray');
-            logNewLine('actions legend: ', 'gray');
-        }
-        actions.forEach(function (action) {
-            //logNewLine(action, 'gray');
-            logNewLine(' '.repeat(action.length - 2) + giveSpace(action, ' ') + action, 'cyan');
-        });
-        showLegend();
-        logNewLine('', 'gray');
-        let lengthLongestProjectNameMap = (key, array) => Math.max(...array.map(arrAll => arrAll[key].length));
-        let lengthLongestProjectName = (lengthLongestProjectNameMap("key", /*in*/ arrAll));
-        let spacer = '∙';
-        //loop all folder in arrAll        
-        for await (const entry of arrAll) {
-            //if startRow or startProject have been set: start from there, otherwise start from the first
-            if ((progressCounter >= argv.startRow) && (entry.key.toLowerCase() >= argv.startProject.toLowerCase())) {
-                logThisLine(getProgressString(progressCounter, arrAll.length) + ' ' + entry.key, 'gray');
-                logThisLine(' ' + spacer.repeat(130 - lengthLongestProjectName - entry.key.length), 'gray');
-                const dir = unifyPath(workingCopyFolder) + entry.key;
-                const dirWithQuotedProjectName = unifyPath(workingCopyFolder) + JSON.stringify(entry.key);
-                if (fs.existsSync(dir)) {
-                    entry.found = true;
-                    entry.path = entry.path.replace(/^\//, ''); //remove leading / from path if necessary                
-                    componentContinuousDeliveryFolder = dir + '/_CONTINUOUS_DELIVERY/DATABASE_MIGRATIONS/'
-                    entry.componentContinuousDeliveryFolderFound = (fs.existsSync(componentContinuousDeliveryFolder));
-                    entry.generalContinuousDeliveryFolderFound = (entry.key === '_CONTINUOUS_DELIVERY');
-                    entry.local_path = dir
-                    const resultInfo = await svnInfoPromise(dirWithQuotedProjectName, svnOptions);
-                    entry.svninfo = resultInfo;
-                    entry.local_project_repo = baseURL + entry.path
-                    var switchPath = baseURL + entry.path;
-                    entry.match = (switchPath.toLowerCase() == decodeURI(resultInfo.entry.url).toLowerCase())
-                    //switch if autoswtich enabled local and remote do not match
-                    if (profile.autoSwitch) {
-                        if (!beInformedRunning) {
-                            if (!entry.match) {
-                                const cleanedSwitch = await svnCleanUpPromise(dirWithQuotedProjectName, svnOptions);
-                                try {
-                                    const switched = await svnSwitchPromise(JSON.stringify(switchPath), dirWithQuotedProjectName, svnOptions)
-                                    memorable('[S]', arrSwitchUpdateCollection, entry, switched, 'green')
-                                } catch (error) {
-                                    logThisLine(`[Š] Errors while switching`, 'red');
-                                }
-                            } else {
-                                // no switch necessary
-                                logThisLine(`[S]`, 'gray');
-                            }
-                        } else {
-                            if (!entry.match) {
-                                // potential switch, since be informed is running
-                                logThisLine(`[Š]`, 'yellow');
-                            } else {
-                                // no switch necessary
-                                logThisLine(`[Š]`, 'gray');
-                            }
-                        }
-                    } else {
-                        //[S] not enabled
-                    }
-                    //update if autoUpdate enabled
-                    if (profile.autoUpdate) {
-                        if (!beInformedRunning) {
-                            const cleanedUpdate = await svnCleanUpPromise(dirWithQuotedProjectName, svnOptions);
-                            const updated = await svnUpdatePromise(dirWithQuotedProjectName, svnOptions)
-                            if (updated.includes("Updated to revision")) {
-                                if (profile.verbose) {
-                                    memorable('[U]', arrSVNUpdatedCollection, entry, updated, 'green')
-                                    logNewLine('', 'gray');
-                                    logNewLine('', 'gray');
-                                    console.log('', updated)
-                                } else {
-                                    memorable('[U]', arrSVNUpdatedCollection, entry, updated, 'green')
-                                }
-                            }
-                            if (updated.includes("At revision")) {
-                                logThisLine('[U]', 'gray');
-                            }
-                            if (updated.includes("Summary of conflicts")) {
-                                if (profile.verbose) {
-                                    console.log('[U] conflict detected, Resolve conflict(s) first: ', updated);  //chalk.red(
-                                    beep(3);
-                                    process.exit()
-                                }
-                            }
-                        } else {
-                            //[U] enabled, but BI is running, so [Ŭ]. Only incoming updates, not outgoing
-                            const svnStatusOptions = JSON.parse(JSON.stringify(svnOptions));
-                            svnStatusOptions.params = ['--allow-mixed-revisions --dry-run -r BASE:HEAD ' + dirWithQuotedProjectName];
-                            const mergeList = await svnMergePromise(dirWithQuotedProjectName, svnStatusOptions)
-                            if (mergeList) {
-                                memorable("[Ŭ]", arrSVNPotentialUpdateCollection, entry, mergeList, 'yellow')
-                                if (profile.verbose) {
-                                    logNewLine('', 'gray');
-                                    logNewLine('', 'gray');
-                                    logNewLine(mergeList.replace(/^--- Merging .*/m, ''), 'yellow');
-                                }
-                            } else {
-                                //[Ŭ] no action needed
-                                logThisLine("[Ŭ]", 'gray');
-                            }
-                        }
-                    } else {
-                        //[U] not enabled
-                    }
-                    //perform db migrations if flyway enabled and current project has a migration folder (component or general)
-                    if (profile.flyway) {
-                        //set default flyway action to migrate
-                        var flywayAction = 'migrate';
-                        //override default when command line option flywayValidateOnly is set
-                        if (argv.flywayValidateOnly) flywayAction = 'validate'; //instead of migrate
-                        const flywayDatabaseTable = '__MigrationsHistory';
-                        const flywayDatabaseSchema = 'migrations';
-                        if (entry.componentContinuousDeliveryFolderFound || entry.generalContinuousDeliveryFolderFound) {
-                            var flywayTable;
-                            var flywayLocations;
-                            if (entry.generalContinuousDeliveryFolderFound) {
-                                flywayTable = JSON.stringify(flywayDatabaseTable);
-                                flywayLocations = JSON.stringify('filesystem:' + dir + '/_GENERAL/DATABASE_MIGRATIONS/');
-                            } else {
-                                flywayTable = JSON.stringify(entry.key);
-                                flywayLocations = JSON.stringify('filesystem:' + dir + '/_CONTINUOUS_DELIVERY/DATABASE_MIGRATIONS/');
-                            }
-                            flywayDatabaseConnectionString = `jdbc:sqlserver://${profile.flywayDatabaseServer}:${profile.flywayDatabaseServerPort};databaseName=${profile.flywayDatabaseName};integratedSecurity=false;user=${profile.flywayDatabaseUsername};password=${profile.flywayDatabasePassword};`
-                            let flywayCommand = profile.flywayPath + 'flyway ' + flywayAction + ' -color=always -locations=' + flywayLocations + ' -schemas=' + flywayDatabaseSchema + ' -table=' + flywayTable + ' -url=' + flywayDatabaseConnectionString + ' -user=' + profile.flywayDatabaseUsername + ' -password=' + profile.flywayDatabasePassword
-                            let flywayResult = await execShellCommand(flywayCommand);
-                            flywayResult = flywayResult.replace(/^Database: .*\(Microsoft SQL Server [\d]+\.[\d]+\)/m, '');
-                            flywayResult = flywayResult.replace(/^Flyway Community Edition .*/m, '');
-                            flywayResult = flywayResult.replace(/^Current version of schema .*/m, '');
-                            flywayResult = flywayResult.trim();
-                            if (flywayResult.includes("No migration necessary")) {
-                                logThisLine('[F]', 'gray');
-                            } else {
-                                memorable('[F]', arrFlywayUpdatedCollection, entry, flywayResult, 'green')
-                                if (profile.verbose) {
-                                    logNewLine('', 'white')
-                                    logNewLine('', 'white')
-                                    console.dir(flywayResult)
-                                }
-                            }
-                        } else {
-                            //flyway enabled, but no continuous delivery folder
-                        }
-                    } else {
-                        //flyway not enabled
-                    }
-                    //compare specific folder with reference specific
-                    if (profile.compareSpecific && entry.isSpecific) {
-                        if (entry.isInternal && ((AppIsFullyComparable(oAppContext, profile) && entry.isDomainSpecific) || entry.isSolutionComponent)) {
-                            var leftSideFolder = dir;
-                            var rightSideFolder = leftSideFolder.replace(workingCopyFolder, profile.compareSpecificRootFolder.toLowerCase());
-                            leftSet = await checkPath(leftSideFolder, workingCopyFolder);
-                            rightSet = await checkPath(rightSideFolder, profile.compareSpecificRootFolder.toLowerCase());
-                            const difference = new Set([
-                                ...getDifference(leftSet, rightSet),
-                                ...getDifference(rightSet, leftSet),
-                            ]);
-                            if (difference.size > 0) {
-                                memorable('[C]', arrCompareSpecificUpdateCollection, entry, entry.key, 'red');
-                                logNewLine('', 'red');
-                                difference.forEach(function (dif) {
-                                    logNewLine('', 'red');
-                                    logThisLine('[C] - ', 'red');
-                                    logThisLine(dif, 'gray');
-                                });
-                                logNewLine('', 'red');
-                            }
-                            else {
-                                logThisLine('[C]', 'gray');
-                            }
-                        } else {
-                            // compareSpecific enabled, but not an internal/specific project
-                        }
-                    } else {
-                        // compareSpecific not enabled
-                    }
-                    //perform deployment check on project
-                    if (argv.deploymentCheck) {
-                        if (entry.isExternal) {
-                            if (entry.isTagged) {
-                                logThisLine('[D]', 'green');
-                            } else {
-                                memorable('[D]', arrDeploymentCheckCollection, entry, entry.key, 'red');
-                            }
-                        } else {
-                            //not external
-                        }
-                    } else {
-                        // deploymentCheck not enabled
-                    }
-                    //create a jira tag report for each component
-                    if (argv.tagReport) {
-
-                        let bExternalComponent = (entry.isExternal && entry.isCoreComponent && (entry.isTrunk || argv.includeTagged));
-                        let bInternalComponent = (entry.isInternal && argv.includeInternals);
-                        if (bExternalComponent || bInternalComponent) {
-
-
-                            //determine from/to for svn logs. 
-                            //for bExternalComponent: look at the changes since the previous tag of the active component base folder, ie from tags/1.9.0/SC ABC to trunk/SC ABC
-                            let oFrom, oTo;
-
-                            if (bExternalComponent) {
-                                //from
-                                //ie https://domain/svn/MBS_ANGLO/Benefit_Account/tags
-                                //let sListURL = `"${baseURL}${entry.componentBaseFolder}/tags"`;
-                                let previousVersion = '';
-                                let oPreviousVersion = arrPreviousExternals.find(e => e.key === entry.key)
-                                if (oPreviousVersion) previousVersion = oPreviousVersion.version
-                                thisComponent = await getTag(`${entry.local_project_repo.split('/').slice(0, -1).join('/')}`, previousVersion);
-                            } else
-                                //for bInternalComponent: look at the changes on the same component since the previous tag of the solution, ie from /mbs_anguilla/tags/1.9.0/DSC ABC - specific to /mbs_anguilla/trunk/DSC ABC - specific
-                                if (bInternalComponent) {
-                                    thisComponent = oSolution
-                                }
-
-                            //check if component already added to arrComponents 
-                            if (arrComponents.indexOf(entry.componentName) === -1) {
-
-                                var bComponentLevelMajorTagNumberIncrease = false; //might be modified below
-                                const cloneSvnOptions = JSON.parse(JSON.stringify(svnOptions));
-                                cloneSvnOptions.revision = `${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`//:{${dateOfCurrentTag}} --verbose`
-                                cloneSvnOptions.verbose = true
-                                const logList = await svnLogPromise(`"${baseURL}${entry.componentBaseFolder}"`, cloneSvnOptions);
-                                var logListEntries = logList.logentry;
-                                if (logListEntries && logListEntries.length > 0) {
-                                    //let bComponentWasChangedSincePreviousTag = true;
-                                    logThisLine('[T]', 'green');
-
-                                    //filter the log entries to have only commit messages with JIRA numbers
-                                    regExJira = new RegExp('([A-Z][A-Z0-9]+-[0-9]+)', 'g');
-                                    logListEntries = logListEntries.filter(l => l.author !== 'continuousdelivery' && regExJira.test(l.msg.toUpperCase()));
-                                    //add selected entries in an custom array
-                                    let arrComponentJiraCollection = [];
-                                    //keep unique jira projects in separate array
-                                    let arrJiraProjects = [];
-                                    logNewLine('', 'gray');
-                                    for await (const jiraEntry of logListEntries) {
-                                        //add item only if it is not in the collection already
-                                        var jiraIssueNumber = jiraEntry.msg.match(regExJira).toString().toUpperCase().trim();
-                                        for (const singularJiraIssueNumber of jiraIssueNumber.split(',')) {
-                                            var bIssueLevelMajorTagNumberIncrease = false;
-                                            if (JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('versioned') || JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('interface')) {
-                                                bIssueLevelMajorTagNumberIncrease = true;
-                                                bComponentLevelMajorTagNumberIncrease = true;
-                                            }
-                                            //add unique jira issue to object array
-                                            if (arrComponentJiraCollection.findIndex(j => j.jiraIssueNumber === singularJiraIssueNumber) === -1) {
-                                                var commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace(`https://jira.${profile.domain}/browse/`, '').trim()
-                                                const listAllJiraAngloProjects = ['AIRD', 'AISSB', 'CONVA', 'IRD', 'MTSSSKN', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB'];
-                                                if (listAllJiraAngloProjects.includes(singularJiraIssueNumber.split('-')[0])) {
-                                                    try {
-                                                        theIssue = await jiraComponent.getJiraIssue(profile.jiraUsername, profile.jiraPassword, profile.domain, singularJiraIssueNumber);
-                                                        var issueSummary = theIssue.data.fields.summary;
-                                                        var issueStatus = theIssue.data.fields.status.name;
-                                                        var currentFixVersions = theIssue.data.fields.fixVersions
-                                                    } catch (error) {
-                                                        var issueSummary = 'could not be retrieved due to error';
-                                                        var issueStatus = 'could not be retrieved due to error'
-                                                        var currentFixVersions = [];
-                                                    }
-                                                    const listUnwantedJiraIssueStates = []; //'Ready for development', 'In test', 'On hold'
-                                                    if (!listUnwantedJiraIssueStates.includes(theIssue.data.fields.status.name)) {
-                                                        //add unique jira project to array
-                                                        var jiraProject = singularJiraIssueNumber.substring(0, singularJiraIssueNumber.indexOf('-'));
-                                                        if (arrJiraProjects.indexOf(jiraProject) === -1) arrJiraProjects.push(jiraProject);
-                                                        //add jira issue to object array
-                                                        arrComponentJiraCollection.push(
-                                                            {
-                                                                jiraIssueNumber: singularJiraIssueNumber,
-                                                                jiraIssueDescription: issueSummary,
-                                                                issueStatus,
-                                                                commitMessages: []
-                                                            }
-                                                        )
-                                                        logNewLine('', 'gray')
-                                                        if (bExternalComponent) {
-                                                            logThisLine(`add:      ${bExternalComponent ? entry.componentName : 'internal'} / ${singularJiraIssueNumber}`, 'green')
-                                                        }
-                                                        if (bInternalComponent) {
-                                                            logThisLine(`add:      ${currentSolution.functionalName} / ${singularJiraIssueNumber}`, 'green')
-                                                        }
-                                                        logThisLine(`${bIssueLevelMajorTagNumberIncrease ? ' [major]' : ''}`, 'red')
-                                                        arrComponentJiraCollection[arrComponentJiraCollection.length - 1].commitMessages.push(commitMessageString);
-                                                    } else {
-                                                        logNewLine('', 'gray')
-                                                        logThisLine(`Skip: ${singularJiraIssueNumber}`, 'yellow')
-                                                        logThisLine(` [${theIssue.data.fields.status.name}]`, 'yellow')
-                                                    }
-                                                } //else {
-                                                //  logNewLine('', 'gray');
-                                                //  logNewLine('Comment contains invalid or unknown JIRA project: ' + singularJiraIssueNumber, 'red');
-                                                //}
-                                            } else {
-                                                //add commit msg to appropriate issue issue object
-                                                var indexOfExistingJiraIssue = arrComponentJiraCollection.findIndex(j => j.jiraIssueNumber === singularJiraIssueNumber)
-                                                if (arrComponentJiraCollection[indexOfExistingJiraIssue].commitMessages.indexOf(commitMessageString) === -1) {
-                                                    arrComponentJiraCollection[indexOfExistingJiraIssue].commitMessages.push(commitMessageString)
-                                                }
-                                            };
-                                        }
-                                    }
-
-                                    // var derivedNewTagNumber;
-                                    // if(bExternalComponent) {
-                                    //     if(entry.isTrunk ) {
-                                    //         derivedNewTagNumber = semver.inc(oTo.tagNumber,bComponentLevelMajorTagNumberIncrease?'major':'minor')
-                                    //     } else {
-                                    //         derivedNewTagNumber = oTo.oCurrentRevision.tagNumber 
-                                    //     }
-                                    // } else
-                                    // if(bInternalComponent) {
-                                    //     derivedNewTagNumber = oSolution.current.tagNumber
-                                    // }
-
-
-                                    if (profile.verbose) {
-                                        logNewLine('', 'gray');
-                                        logNewLine(`${entry.isTagged ? 'tag:     ' : entry.isExternal ? 'trunk:   ' : 'internal:'} ${bComponentLevelMajorTagNumberIncrease ? 'Major' : 'Minor'}: ${thisComponent.previous.tagNumber} to ${thisComponent.hasOwnProperty('future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber}, rev:{${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}}, ${arrComponentJiraCollection.length} JIRA issues`, "green");
-                                    }
-                                    //sort jira issue alphabetically
-                                    arrComponentJiraCollection.sort();
-
-                                    const arrComponentJiraCollectionMapped = arrComponentJiraCollection.map((element) => ({
-                                        component: entry.componentName,
-                                        ...element
-                                    }));
-                                    arrComponentJiraCollection = arrComponentJiraCollectionMapped;
-
-                                    //add unique component to arrComponents
-                                    arrComponents.push(entry.componentName);
-
-                                    arrOverallJiraCollection = arrOverallJiraCollection.concat(arrComponentJiraCollection)
-
-                                    let tagNumber = thisComponent.hasOwnProperty('future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber
-                                    let tagName = '';
-                                    if (bExternalComponent) {
-                                        tagName = entry.componentName + ' ' + tagNumber
-                                    } else {
-                                        tagName = currentSolution.functionalName + ' ' + tagNumber
-                                    };
-
-                                    arrTagReportCollection.push({
-                                        component: entry.componentName,
-                                        toBeTagged: thisComponent.toBeTagged,
-                                        previousTagNumber: thisComponent.previous.tagNumber,
-                                        previousTagRevisionNumber: thisComponent.previous.tagRevisionNumber,
-                                        previousTagUrl: thisComponent.previous.tagRevisionNumber,
-                                        currentTagNumber: thisComponent.current.tagNumber,
-                                        currentTagRevisionNumber: thisComponent.current.tagRevisionNumber,
-                                        currentTagUrl: thisComponent.current.tagUrl,
-                                        tagName: tagName,
-                                        tagNumber: tagNumber,
-                                        tagBaseUrl: thisComponent.current.tagBaseUrl,
-                                        tagSourceUrl: thisComponent.current.tagUrl,
-                                        tagTargetUrl: thisComponent.hasOwnProperty('future') ? thisComponent.future.tagUrl : thisComponent.current.tagUrl,
-                                        jiraProjects: arrJiraProjects,
-                                        numberOfJiraIssues: arrComponentJiraCollection.length,
-                                        jiraIssues: arrComponentJiraCollection
-                                    });
-
-                                } else logThisLine('[-]', 'gray'); // no or just 1 logentry (the tag)
-                            } else logThisLine('[-]', 'gray');
-                        } else {
-                            logThisLine(`[-]`, 'gray');
-                        }
-                        //}
-                    } else {
-                        // tagReport not enabled
-                    }
-                    if (argv.tagReportExecution) {
-
-                        let bSolutionTaggingEnabled = false;
-                        let bSolutionJiraHandlingEnabled = true;
-                        let bComponentTaggingEnabled = false;
-                        let bComponentJiraHandlingEnabled = false;
-
-
-                        if (true) {
-                            // ------------------------------------------------------------------
-                            // general
-                            // ------------------------------------------------------------------
-                            tagReportExecutionSolutionData = tagReportArray[0];
-                            tagReportExecutionComponentData = tagReportArray[0].componentCollection.find(y => (y.component == entry.componentName));
-                            logThisLine('[E]', 'gray');
-                            logNewLine('', 'gray');
-                            logNewLine('', 'gray');
-
-                            // ------------------------------------------------------------------
-                            // solution - tagging
-                            // ------------------------------------------------------------------
-                            if (argv.tagReportExecutionMode === 'solution' && !bDone) {
-                                if (tagReportExecutionSolutionData.currentTagNumber === 'trunk' || true) {
-
-                                    //if tag not exists
-                                    let tagExist;
-                                    try {
-                                        const resultInfo = await jiraComponent.jiraGet(profile.svnOptionsUsername, profile.svnOptionsPassword, `${tagReportExecutionSolutionData.tagSourceUrl}`);
-                                        tagExist = (resultInfo.status === 200);
-                                    } catch (error) {
-                                        tagExist = false;
-                                    }
-                                    if (!tagExist) {
-                                        console.log(`Tagging solution '${tagReportExecutionSolutionData.solution}' with tag '${tagReportExecutionSolutionData.tagName}'`)
-                                        let svnCopyCommand = `svn copy "${tagReportExecutionSolutionData.tagSourceUrl}" "${tagReportExecutionSolutionData.tagSourceUrl}" -m "${tagReportExecutionSolutionData.tagName}"`
-                                        console.log(`command: ${svnCopyCommand}`)
-                                        if (bSolutionTaggingEnabled) {
-                                            try {
-                                                let tagResult = await execShellCommand(svnCopyCommand);
-                                            } catch (error) {
-                                                console.dir('Errors while executing execShellCommand(tag): ', svnCopyCommand)
-                                                beep(3);
-                                            }
-                                        }
-                                    } else {
-                                        console.log('Tag already exists. Skip tagging. Continuing...', tagReportExecutionSolutionData.tagNumber)
-                                    }
-                                } // console.log('solution not on trunk', tagReportExecutionSolutionData.tagNumber)
-
-                                logNewLine('', 'gray')
-
-                                // ------------------------------------------------------------------
-                                // solution - jira handling
-                                // ------------------------------------------------------------------
-
-                                //gather unique projects from jira issues
-                                arrUniqueJiraProjects = [];
-                                for (const components of tagReportArray[0].componentCollection) {
-                                    for (const jiraProject of components.jiraProjects) {
-                                        if (arrUniqueJiraProjects.indexOf(jiraProject) === -1) {
-                                            arrUniqueJiraProjects.push(jiraProject)
-                                        }
-                                    }
-                                }
-
-                                let jiraProjectCounter = 1;
-                                for await (const jiraProject of arrUniqueJiraProjects) {
-                                    //create fix version in each distinct project, if it not exists already
-                                    logNewLine(`[${jiraProjectCounter}/${arrUniqueJiraProjects.length}] adding fix version '${tagReportExecutionSolutionData.tagName}' to project '${jiraProject}'`, 'green')
-                                    if (bSolutionJiraHandlingEnabled) {
-                                        try {
-                                            await jiraComponent.addVersionIfNotExists(profile.jiraUsername, profile.jiraPassword, profile.domain, jiraProject, tagReportExecutionSolutionData.tagName, false);
-                                        } catch (error) {
-                                            console.dir('Errors while executing addVersionIfNotExists: ', jiraProject, tagReportExecutionSolutionData.tagName)
-                                            beep(3);
-                                        }
-                                    }
-                                    jiraProjectCounter++;
-                                }
-                                // run only once for the whole solution
-                                bDone = true;
-
-                                logNewLine('', 'gray')
-                            }
-
-                            //for each issue in the solution, both internal and external components get the solution tag name
-                            let jiraIssueCounter = 1;
-                            for await (const jiraIssue of tagReportExecutionComponentData.jiraIssues) {
-                                //create fix version in each issue
-                                logNewLine(`[${jiraIssueCounter}/${tagReportExecutionComponentData.jiraIssues.length}] adding fix version '${tagReportExecutionSolutionData.tagName}' to jira issue '${jiraIssue.jiraIssueNumber}'`, 'green')
-                                //perform on sample project
-                                if (bSolutionJiraHandlingEnabled) {
-                                    try {
-                                        await jiraComponent.updateJiraIssueFixVersion(profile.jiraUsername, profile.jiraPassword, profile.domain, jiraIssue.jiraIssueNumber, tagReportExecutionSolutionData.tagName);
-                                    } catch (error) {
-                                        console.dir('Errors while executing updateJiraIssueFixVersion: ', jiraIssue.jiraIssueNumber, tagReportExecutionSolutionData.tagName)
-                                        beep(3);
-                                    }
-                                }
-                                jiraIssueCounter++;
-                            }
-
-                            // ------------------------------------------------------------------
-                            // solution component - tagging
-                            // ------------------------------------------------------------------                            
-                            if (argv.tagReportExecutionMode === 'component' || argv.tagReportExecutionMode === 'solution') {
-                                if (entry.isTrunk && entry.isExternal) {
-                                    if (componentTagsCreated.indexOf(entry.componentBaseFolder) === -1) {
-                                        //if tag not exists
-                                        let tagExist;
-                                        try {
-                                            const resultInfo = await jiraComponent.jiraGet(profile.svnOptionsUsername, profile.svnOptionsPassword, `${tagReportExecutionComponentData.tagTargetUrl}`);
-                                            tagExist = (resultInfo.status === 200);
-                                        } catch (error) {
-                                            tagExist = false;
-                                        }
-                                        if (!tagExist) {
-                                            logNewLine(`Tagging ${entry.componentName} with tag ${tagReportExecutionComponentData.tagName}`, 'green')
-                                            let svnCopyCommand = `svn copy "${tagReportExecutionComponentData.tagSourceUrl}" "${tagReportExecutionComponentData.tagTargetUrl}" -m "${tagReportExecutionComponentData.tagName}"`
-                                            console.log(`${svnCopyCommand}`)
-                                            if (bComponentTaggingEnabled) {
-                                                try {
-                                                    let tagResult = await execShellCommand(svnCopyCommand);
-                                                } catch (error) {
-                                                    console.dir('Errors while executing execShellCommand(tag): ', svnCopyCommand)
-                                                    beep(3);
-                                                }
-                                            }
-                                        } else {
-                                            logNewLine(`Skipping ${entry.componentName}, since tag ${tagReportExecutionComponentData.tagNumber} already exists`, 'red')
-                                        }
-                                        componentTagsCreated.push(entry.componentBaseFolder);
-                                        logNewLine('', 'gray')
-                                    }
-                                } // component not on trunk or not external                                
-                                // ------------------------------------------------------------------
-                                // solution component - jira handling
-                                // ------------------------------------------------------------------
-
-                                //jira project handling
-                                if (entry.isTrunk && entry.isExternal) {
-                                    //let tagReportExecutionComponentData = entry.componentName + ' ' + tagReportExecutionComponentData.currentTagNumber;
-                                    logNewLine(`${tagReportExecutionComponentData.component} holding ${tagReportExecutionComponentData.jiraIssues.length} issues in ${tagReportExecutionComponentData.jiraProjects.length} distinct project(s)`, 'green')
-                                    logNewLine('', 'gray');
-                                    let jiraProjectCounter = 1;
-                                    for await (const jiraProject of tagReportExecutionComponentData.jiraProjects) {
-                                        //create fix version in each distinct project, if it not exists already
-                                        logNewLine(`[${jiraProjectCounter}/${tagReportExecutionComponentData.jiraProjects.length}] adding fix version '${tagReportExecutionComponentData.tagName}' to project '${jiraProject}'`, 'green')
-                                        if (bComponentJiraHandlingEnabled) {
-                                            try {
-                                                await jiraComponent.addVersionIfNotExists(profile.jiraUsername, profile.jiraPassword, profile.domain, jiraProject, tagReportExecutionComponentData.tagName, true);
-                                            } catch (error) {
-                                                console.dir('Errors while executing addVersionIfNotExists: ', jiraProject, tagReportExecutionComponentData.tagName)
-                                                beep(3);
-                                            }
-                                        }
-                                        jiraProjectCounter++;
-                                    }
-
-                                    logNewLine('', 'gray')
-
-                                    //jira issue handling
-                                    let jiraIssueCounter = 1;
-                                    for await (const jiraIssue of tagReportExecutionComponentData.jiraIssues) {
-                                        //create fix version in each issue
-                                        logNewLine(`[${jiraIssueCounter}/${tagReportExecutionComponentData.jiraIssues.length}] adding fix version '${tagReportExecutionComponentData.tagName}' to jira issue '${jiraIssue.jiraIssueNumber}'`, 'green')
-                                        //perform on sample project
-                                        if (bComponentJiraHandlingEnabled) {
-                                            try {
-                                                await jiraComponent.updateJiraIssueFixVersion(profile.jiraUsername, profile.jiraPassword, profile.domain, jiraIssue.jiraIssueNumber, tagReportExecutionComponentData.tagName);
-                                            } catch (error) {
-                                                console.dir('Errors while executing updateJiraIssueFixVersion: ', jiraIssue.jiraIssueNumber, tagReportExecutionComponentData.tagName)
-                                                beep(3);
-                                            }
-                                        }
-                                        jiraIssueCounter++;
-                                    }
-                                }
-                            } // else tagreportexecutionmode 
-                        } // 
-
-
-                    } // tagReport exectuion not enabled
-                } else {
-
-                    if (!argv.tagReport && !argv.tagReportExecution) {
-                        memorable('[M]', arrMissingCollection, entry, baseURL + entry.path.replace(/^\//, '').key, 'green');
-                        const dir = workingCopyFolder + entry.key;
-                        const url = baseURL + entry.path.replace(/^\//, ''); //remove leading / from path if necessary      
-                        const e = require("child_process");
-                        const execPromise = util.promisify(e.exec);
-                        const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`
-                        try {
-                            const execPromiseResult = await execPromise(execCommand);
-                        } catch (error) {
-                            console.dir('Errors while executing:', execCommand);//chalk.redBright(
-                            beep(3);
-                        }
-                    }
-                }
-                logNewLine('', 'gray');
-            }
-            progressCounter++;
-        }
-        var SummaryCount = (arrMissingCollection.length + arrSwitchUpdateCollection.length + arrSVNUpdatedCollection.length + arrFlywayUpdatedCollection.length + arrCompareSpecificUpdateCollection.length + arrSVNPotentialUpdateCollection.length + arrDeploymentCheckCollection.length + arrTagReportCollection.length);
-        if (SummaryCount > 0) {
-            logNewLine('', 'gray');
-            console.log('Summary:', SummaryCount.toString().trim(), '(potential) updates for ' + app)
-            beep(2);
-        }
-        else {
-            logNewLine('', 'gray');
-            logNewLine('Summary: ', 'gray');
-            logNewLine('No significant updates for ' + app, 'gray');
-        }
-        if (arrMissingCollection.length > 0) {
-            logNewLine(arrMissingCollection.length + ' [M]issing project(s): Choose "Import / General / Existing Projects into workspace" in Be Informed Studio', 'red');
-        }
-        for (const entry of arrSwitchUpdateCollection) {
-            logNewLine('SVN [S]witch: ' + entry, 'green');
-        }
-        if (arrSwitchUpdateCollection.length > 0) {
-            logNewLine(arrSwitchUpdateCollection.length + ' [S]witched project(s) require a rebuild / validate in Be Informed.', 'red');
-        }
-        for (const entry of arrSVNUpdatedCollection) {
-            logNewLine('SVN [U]pdate: ' + entry, 'green');
-        }
-        if (arrSVNUpdatedCollection.length > 0) {
-            logNewLine(arrSVNUpdatedCollection.length + ' [U]pdated project(s) require a rebuild / validate in Be Informed.', 'red');
-        }
-        for (const entry of arrFlywayUpdatedCollection) {
-            logNewLine('[F]lyway: ' + entry, 'gray');
-        }
-        for (const entry of arrSVNPotentialUpdateCollection) {
-            logNewLine('Potential [Ŭ]pdates: ' + entry, 'cyan');
-        }
-        //store potential updates, so user can update the projects after closing bi using the --keepUp. After an actual update, empty 
-        var filename = workingCopyFolder + "keepup.json";
-        if (arrSVNPotentialUpdateCollection.length > 0) {
-            fs.writeFileSync(filename, JSON.stringify(arrSVNPotentialUpdateCollection, null, 2));
-        }
-        if (profile.autoUpdate && fs.existsSync(filename)) {
-            fs.unlinkSync(filename);
-        }
-        if (arrCompareSpecificUpdateCollection.length > 0) {
-            logNewLine(arrCompareSpecificUpdateCollection.length + ' project for which the [C]ompare specific check failed. Manually investigate the inconsistencies.', 'red');
-        }
-        if (arrDeploymentCheckCollection.length > 0) {
-            logNewLine(arrDeploymentCheckCollection.length + ' project for which the [D]eployment check failed. Tag the relevant externals projects.', 'red');
-        }
-        if (arrDeploymentCheckCollection.length === 0 && argv.deploymentCheck) {
-            logNewLine('Deployment check positive: all externals have been tagged.', 'green');
-        }
-        if (argv.tagReport && arrTagReportCollection.length > 0) {
-            issueCount = arrTagReportCollection.map(a => a.jiraIssues.length).reduce((a, b) => a + b)
-            arrTagReportSolutionCollection.push({
-                solution: currentSolution.name,
-                toBeTagged: oSolution.toBeTagged,
-                previousTagNumber: oSolution.previous.tagNumber,
-                previousTagRevisionNumber: oSolution.previous.tagRevisionNumber,
-                currentTagNumber: oSolution.current.tagNumber,
-                currentTagRevisionNumber: oSolution.current.tagRevisionNumber,
-                tagName: oSolution.hasOwnProperty('future') ? currentSolution.functionalName + ' ' + oSolution.future.tagNumber : currentSolution.functionalName + ' ' + oSolution.current.tagNumber,
-                tagNumber: oSolution.hasOwnProperty('future') ? oSolution.future.tagNumber : oSolution.current.tagNumber,
-                tagBaseUrl: oSolution.current.tagBaseUrl,
-                tagSourceUrl: oSolution.current.tagUrl,
-                tagTargetUrl: oSolution.hasOwnProperty('future') ? oSolution.future.tagUrl : oSolution.current.tagNumber,
-                numberOfComponents: arrTagReportCollection.length,
-                numberOfJiraIssues: issueCount,
-                componentCollection: arrTagReportCollection
-            });
-            var filename = `${workingCopyFolder}tagreport_${timestampStart}`;
-
-            if (arrTagReportCollection && arrTagReportCollection.length > 0 && issueCount && issueCount > 0) {
-                logNewLine(`Tag report has been stored as ${filename}.json. It contains ${arrTagReportCollection.length} components and ${issueCount} issues`, 'gray');
-            }
-
-            //write (append to new or existing file)
-            fs.writeFileSync(filename + '.json', JSON.stringify(arrTagReportSolutionCollection, null, 2));
-            const xlsx = require("xlsx")//npm install xlsx
-            var newWB = xlsx.utils.book_new()
-            const excelProjectArray = arrTagReportCollection.map(({ jiraProjects, jiraIssues, wasAlreadyTagged, isMajor, ...keepAttrs }) => keepAttrs)
-            var objProject = excelProjectArray.map((e) => {
-                return e
-            })
-            try {
-                var newWSProject = xlsx.utils.json_to_sheet(objProject)
-                const excelJiraArray = arrOverallJiraCollection.map(({ commitMessages, currentFixVersions, ...keepAttrs }) => keepAttrs)
-                var objIssue = excelJiraArray.map((e) => {
-                    return e
-                })
-                var newWSIssue = xlsx.utils.json_to_sheet(objIssue)
-                xlsx.utils.book_append_sheet(newWB, newWSProject, "components")
-                xlsx.utils.book_append_sheet(newWB, newWSIssue, "issues")
-                xlsx.writeFile(newWB, filename + ".xlsx")//file name as param                                            
-            } catch (error) {
-                console.dir('Errors while exporting to excel. Is file closed?')
-                beep(3);
-            }
-        }
-        showBIRunningWarning(beInformedRunning);
-    } catch (error) {
-        //console.log(error)
-        console.log('Errors occurred:', error);//chalk.redBright(
-        beep(3);
-    }
-    process.stdout.write('\n');
-    process.exit(0);
-}
-const zeroPad = (num, places) => String(num).padStart(places, '0')
-function getProgressString(c, l) {
-    return '[' + zeroPad(c, 3) + '/' + zeroPad(l, 3) + ']'
-}
-function embrace(s) {
-    return '[' + s + ']'
-}
-function logThisLine(t, c, lf) {
-    mylog(t, c, false)
-}
-function logNewLine(t, c, lf) {
-    mylog(t, c, true)
-}
-function execShellCommand(cmd) {
-    const exec = require('child_process').exec;
-    return new Promise((resolve, reject) => {
-        exec(cmd, (error, stdout, stderr) => {
-            if (error) {
-                console.warn(error);
-            }
-            resolve(stdout ? stdout : stderr);
-        });
-    });
-}
-function alertTerminal(mode) {
-    let beep = require('node-beep');
-    if ((mode === 'F') || (mode.includes('U')) || (mode.includes('S')) || (mode === 'C')) {
-        beep(1);
-    }
-}
-function mylog(t, c, lf) {
-    if ((argv.hasOwnProperty('workingCopyFolder')) && (argv.workingCopyFolder.lenght > 0)) {
-        console.log(t);
-    }
-    else {
-        if (c === 'yellow') {
-            process.stdout.write("\x1b[93m" + t + "\x1b[39m")
-        } else if (c === 'red') {
-            process.stdout.write("\x1b[91m" + t + "\x1b[39m")
-        }
-        else if (c === 'gray') {
-            process.stdout.write("\x1b[97m" + t + "\x1b[39m")
-        }
-        else if (c === 'gray') {
-            process.stdout.write(t);
-        }
-        else if (c === 'white') {
-            process.stdout.write("\x1b[97m" + t + "\x1b[37m")
-        }
-        else if (c === 'green') {
-            process.stdout.write("\x1b[32m" + t + "\x1b[39m")
-        }
-        else if (c === 'blue') {
-            process.stdout.write("\x1b[34m" + t + "\x1b[39m")
-        }
-        else if (c === 'cyan') {
-            process.stdout.write("\x1b[36m" + t + "\x1b[39m")
-        }
-        if (lf) {
-            process.stdout.write("\n")
-        }
-    }
-}
-function renderTitle() {
-    logNewLine('+-'.repeat((process.stdout.columns || defaultColumns) / 4), 'gray');
-    logline(` = ` + oAppContext.descriptiveName + ` = `, 'info', '\n');
-    logNewLine('+-'.repeat((process.stdout.columns || defaultColumns) / 4), 'gray');
-    logNewLine(``, 'gray');
-    logNewLine(`Welcome to ` + oAppContext.descriptiveName + `!`, 'gray');
-    logNewLine(``, 'gray');
-    logNewLine(oAppContext.descriptiveName + ` assists with SVN switches and SVN updates of your projects, detect any missing projects,`, 'gray');
-    logNewLine(`execute any general or project flyway scripts and validate the structure of Anglo specific projects.`, 'gray');
-    logNewLine(``, 'gray');
-    logNewLine(`Since this is probably the first time you're using ` + oAppContext.descriptiveName + `,`, 'gray');
-    logNewLine(`please answer the following questions to setup your profile.`, 'gray');
-    logNewLine(``, 'gray');
-}
-function renderTitleToVersion() {
-    logNewLine('+-'.repeat((process.stdout.columns || defaultColumns) / 4), 'gray');
-    logline(` = ` + oAppContext.descriptiveName + ` = `, 'info', '\n');
-    logNewLine('+-'.repeat((process.stdout.columns || defaultColumns) / 4), 'gray');
-    logNewLine(``, 'gray');
-    logNewLine(`Welcome to ` + oAppContext.descriptiveName + `!`, 'gray');
-    logNewLine(``, 'gray');
-    logNewLine(oAppContext.descriptiveName + ` assists with moving to a particular SVN version.`, 'gray');
-    logNewLine(`Please pick a version from the list below using the arrow keys and press enter to update the current folder to that version.`, 'gray');
-    logNewLine(``, 'gray');
-    logNewLine(``, 'gray');
-}
-async function checkPath(folder, baseToReplace) {
-    const path = require("path");
-    let bixmlContainingPaths = new Set();
-    try {
-        const files = await globPromise(folder + '/**/*.bixml');
-        for (const file of files) {
-            bixmlContainingPaths.add(path.join(file.replace(baseToReplace, '')));
-        }
-    } catch (error) {
-        //console.log(error)
-        console.log('Errors occurred:', error);
-    }
-    return bixmlContainingPaths;
-}
-function getDifference(setA, setB) {
-    return new Set(
-        [...setA].filter(element => !setB.has(element))
-    );
-}
-function getProbableApp() {
-    const svnDir = `.svn`
-    if (fs.existsSync(svnDir)) {
-        //exit
-        logNewLine('Do not run this application in an SVN working copy folder. Move to the root of your workspace or an empy folder.', 'red');
-        process.exit(0);
-    }
-    const cwd = process.cwd().toLowerCase();
-    var probableApp = '';
-    if (argv.app) {
-        probableApp = argv.app
-    }
-    else if (cwd.includes('mbs') || cwd.includes('mts')) {
-        probableApp = determineProbableAngloApp(cwd)
-    }
-    else if ((fs.existsSync('./MBS Portal'))) {
-        probableApp = 'mbs'
-    }
-    else if ((fs.existsSync('./MTS Portal'))) {
-        probableApp = 'mts'
-    }
-    else {
-        console.log('App could not be determined automatically. Please provide an --app as argument.');
-        process.exit()
-    }
-    return {
-        app: probableApp,
-        workingCopyFolder: cwd
-    };
-}
-async function getSVNContext(app, workingCopyFolder, switchedTo) {
-    const dirWithQuotedProjectName = (workingCopyFolder + '\\' + JSON.stringify(app.toUpperCase() + " Portal")).replace(/[\\/]+/g, '/')//.replace(/^([a-zA-Z]+:|\.\/)/, '');
-    const dir = `.//${app.toUpperCase()} Portal`
-    if (!argv.domain && !fs.existsSync(path.normalize(workingCopyFolder + 'profile_1.json'))) {
-        console.log('Cannot determine domain, please specify your organisational domain as argument, ie: --domain mycompany.org or --domain microsoft.com');
-        process.exit(0);
-    }
-
-    if (!fs.existsSync(dir)) {
-
-        renderTitleToVersion();
-        let qBranches;
-        var appRoot = `https://svn.${profile ? profile.domain : argv.domain}/svn/${app}_anguilla`;
-        try {
-            let svnOptions = { trustServerCert: true };
-            //if provided, add username and password to the svn options
-            if (argv.svnOptionsUsername && argv.svnOptionsPassword) {
-                svnOptions.username = argv.svnOptionsUsername
-                svnOptions.password = argv.svnOptionsPassword
-            };
-            const svnToVersionBranchesChoices = await svnListPromise(appRoot + '/branches', svnOptions);
-            qBranches = svnToVersionBranchesChoices.list.entry.filter(q => !q.name.startsWith('cd_')).slice(-10).map(b => 'branches/'.concat(b.name));
-        } catch (error) {
-            logThisLine(`Can't login into SVN. Provide them on the command line, at least once, using --svnOptionsUsername [username] --svnOptionsPassword [password] `, 'red');
-            process.exit(0);
-        }
-        let qarrToVersion = qBranches
-        qarrToVersion.push('trunk');
-        const questionsToVersion = [
-            {
-                type: "list",
-                name: "selectedSVNVersion",
-                message: "Pick a version, any version.",
-                choices: qarrToVersion,
-                default: 'trunk'
-            },]
-        await inquirer
-            .prompt(questionsToVersion)
-            .then(async (answersToVersion) => {
-                const url = `https://svn.${profile ? profile.domain : argv.domain}/svn/${app.toUpperCase()}_ANGUILLA/${answersToVersion.selectedSVNVersion}/${app.toUpperCase()} Portal`;
-                const e = require("child_process");
-                const execPromise = util.promisify(e.exec);
-                const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`
-                const execPromiseResult = await execPromise(execCommand);
-            })
-            .catch((error) => {
-                if (error.isTtyError) {
-                    console.log("Your console environment is not supported!")
-                } else {
-                    console.dir(error)
-                }
-            })
-    }
-    const svnInfoPromise = util.promisify(svnUltimate.commands.info);
-    const infoResult = await svnInfoPromise(dirWithQuotedProjectName);
-    // Define desired object
-    var URL = infoResult.entry.url;
-    var urlParts = URL.split('/');
-    var angloSVNPath = urlParts[urlParts.length - 2];
-    if (switchedTo) {
-        angloSVNPath = switchedTo;
-    }
-    var repo = urlParts[urlParts.length - 3];
-    if (angloSVNPath == 'trunk') {
-        svnAndApp = '/' + urlParts[3] + '/';
-        svnApp = urlParts[4];
-    } else {
-        svnAndApp = '/' + urlParts[3] + '/' + urlParts[4] + '/';
-        svnApp = urlParts[4];
-    }
-    var angloClient = svnApp.toLowerCase().replace(app + '_', '');
-    var currentVersion = repo + '/' + angloSVNPath
-    var baseURL = urlParts.slice(0, 3).join('/') + '/';
-    var appRoot = urlParts.slice(0, 5).join('/') + '/';
-    var remoteRepo = urlParts.slice(0, urlParts.length - 1).join('/');
-    return {
-        URL: URL,
-        angloSVNPath: angloSVNPath,
-        repo: repo,
-        svnAndApp: svnAndApp,
-        svnApp: svnApp,
-        angloClient: angloClient,
-        baseURL: baseURL,
-        appRoot: appRoot,
-        currentVersion: currentVersion,
-        remoteRepo: remoteRepo
-    };
-}
-function getWorkingCopyFolder(oAppContext) {
-    if (argv.workingCopyFolder) {
-        return unifyPath(argv.workingCopyFolder);
-    } else {
-        return unifyPath(oAppContext.workingCopyFolder) + '/';
-    }
-}
-function AppIsFullyComparable(oAppContext, profile) {
-    return (oAppContext.app === determineProbableAngloApp(profile.compareSpecificRootFolder.toLowerCase()))
-}
-function determineProbableAngloApp(path) {
-    if ((path.toLowerCase().includes('mbs')) && (!path.toLowerCase().includes('mts'))) {
-        return 'mbs'
-    }
-    else if ((path.toLowerCase().includes('mts')) && (!path.toLowerCase().includes('mbs'))) {
-        return 'mts'
-    } else {
-        console.log('nee');
-    }
-}
-function unifyPath(path) {
-    return path.toString().toLowerCase().replaceAll('\\', '/')
-};
-async function getProfileSequenceNumber() {
-    const files = await globPromise('profile_[0-9]*.json');
-    if (files.length > 0) {
-        return parseInt(files.sort().reverse()[0].toString().split('_').reverse()[0].replace('.json', '')) + 1;
-    } else {
-        return 0
-    }
-}
-function memorable(symbol, collection, entry, payload, color) {
-    logThisLine(symbol, color);
-    alertTerminal(symbol);
-    collection.push(entry.key);
-}
-async function checkdb(profile) {
-    const sql = require('mssql')
-    try {
-        // config for your database
-        var config = {
-            user: profile.flywayDatabaseUsername,
-            password: profile.flywayDatabasePassword,
-            server: profile.flywayDatabaseServer,
-            database: profile.flywayDatabaseName,
-            trustServerCertificate: true
-        };
-        await sql.connect(config)
-        const result = await sql.query`select count(0) from cmfcase`
-    } catch (err) {
-        return false
-    }
-    return true
-}
-function right(str, chr) {
-    return str.slice(str.length - chr, str.length);
-}
-function giveSpace(stringForLength, spaceChar) {
-    return spaceChar.repeat(30 - stringForLength.length)
-}
-function giveMoreSpace(l, spaceChar) {
-    return spaceChar.repeat(l)
-}
-function showLegend() {
-    logNewLine('', 'gray');
-    logNewLine('color legend: ', 'white');
-    let l = 31, sp = ' ';
-    s = '[X]: no action needed';
-    logNewLine(giveMoreSpace(l, sp) + s, 'white');
-    s = '[X]: potential action need';
-    logNewLine(giveMoreSpace(l, sp) + s, 'yellow');
-    s = '[X]: action performed';
-    logNewLine(giveMoreSpace(l, sp) + s, 'green');
-    s = '[X]: warning / error / attention';
-    logNewLine(giveMoreSpace(l, sp) + s, 'red');
-}
-function showBIRunningWarning(beInformedRunning) {
-    if (beInformedRunning) {
-        logNewLine('', 'red');
-        if (profile.autoSwitch || profile.autoUpdate) {
-            logNewLine('Warning: Be Informed seems to be running ' + (app).toLowerCase() + '! Regarding svn [U]pdate and [S]witch: Only "detection" possible, indicated by [Š]/[Ŭ]', 'red');
-        }
-    }
-}
-async function getRemoteAppVersion() {
-    try {
-        let url = "https://raw.githubusercontent.com/guidohollander/anglo-helper/master/package.json";
-        const https = require('https');
-        https.get(url, (res) => {
-            let body = "";
-            res.on("data", (chunk) => {
-                body += chunk;
-            });
-            res.on("end", () => {
-                try {
-                    let json = JSON.parse(body);
-                    return json.version
-                } catch (error) {
-                    console.error(error.message);
-                };
-            });
-        }).on("error", (error) => {
-            console.error(error.message);
-        });
-    } catch (error) {
-        console.dir('Errors occurred:', error);//chalk.redBright(
-        beep(3);
-    }
-}
-function getComponentName(componentBaseFolder) {
-    var p1 = componentBaseFolder.split('/')
-    return (p1[p1.length - 2].replaceAll('_', ' ').includes('SolutionDevelopment') ? 'SC ' : 'DSC ') + p1[p1.length - 1].replaceAll('_', ' ').replace('Compliance', 'Compliancy').replace('SC Reallocate Payment', 'SC Payment reallocation')
-}
-
-//get revision info of previous trunk/tag/branch
-async function getTag(url, tagNumberinPreviousSolution) {
-
-    let bSolutionOrComponentOnTrunk = url.includes('trunk')
-
-    //get list of tags of this entry
-    arrUrl = url.split('/');
-    svnPathPartLength = bSolutionOrComponentOnTrunk ? 1 : 2
-    svnPathPart = arrUrl.splice(-svnPathPartLength);
-    actualSvnTrunkBranchOrTagPart = svnPathPart[0].replace('"', '');
-    derivedSvnTrunkBranchOrTagPart = bSolutionOrComponentOnTrunk ? 'tags' : actualSvnTrunkBranchOrTagPart
-    actualSvnTrunkBranchOrTagNumberPart = svnPathPart[svnPathPart.length - 1].replace('"', '');
-    derivedSvnTrunkBranchOrTagNumberPart = actualSvnTrunkBranchOrTagNumberPart === 'undefined' ? 0 : actualSvnTrunkBranchOrTagNumberPart
-    sListURL = arrUrl.join('/').replace('"', '');
-
-    const lsTagsOrBranches = await svnListPromise(`"${sListURL}/${derivedSvnTrunkBranchOrTagPart}"`);
-    //create array, only of numeric tags
-    arrTagsOrBranches = lsTagsOrBranches.list.entry.filter(item => !isNaN(item.name.charAt(0)));
-    //properly order semantic tags on unfiltered arrTagsOrBranches
-    if (arrTagsOrBranches.length > 1) {
-        arrTagsOrBranchesSorted = arrTagsOrBranches.map(a => a.name.replace(/\d+/g, n => +n + 100000)).sort().map(a => a.replace(/\d+/g, n => +n - 100000));
-    } else {
-        //nothing to be sorted since there's only 1
-        arrTagsOrBranchesSorted = arrTagsOrBranches
-    }
-    //force trunk in sorted array
-    arrTagsOrBranchesSorted.unshift('trunk');
-
-    indexCurrent = arrTagsOrBranchesSorted.findIndex(i => i === derivedSvnTrunkBranchOrTagNumberPart)
-    currentArrTagsOrBranchesSorted = arrTagsOrBranchesSorted[indexCurrent]
-    if (tagNumberinPreviousSolution && tagNumberinPreviousSolution !== '') {
-        previousArrTagsOrBranchesSorted = arrTagsOrBranchesSorted.find(e => e === tagNumberinPreviousSolution)
-    } else {
-        previousArrTagsOrBranchesSorted = bSolutionOrComponentOnTrunk ? arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1] : arrTagsOrBranchesSorted[indexCurrent - 1]
-    }
-
-    let currentRevisionNumber, currentTagNumber, currentTagUrl, currentTagBaseUrl;
-    let previousRevisionNumber, previousTagNumber, previousTagUrl, previousTagBaseUrl;
-    let previousResultInfo;
-    let currentResultInfo;
-
-    currentResultInfo = await svnInfoPromise(`"${url}"`);
-
-    currentRevisionNumber = currentResultInfo.entry.commit.$.revision;
-    currentTagNumber = bSolutionOrComponentOnTrunk ? 'trunk' : arrTagsOrBranches.find(i => i.name = arrTagsOrBranchesSorted[indexCurrent]).name;
-    currentTagUrl = url;
-    currentTagBaseUrl = sListURL;
-
-    previousUrl = url.replace(currentArrTagsOrBranchesSorted, bSolutionOrComponentOnTrunk ? `${derivedSvnTrunkBranchOrTagPart}/` : '') + previousArrTagsOrBranchesSorted
-    previousResultInfo = await svnInfoPromise(`"${previousUrl}"`);
-
-    previousRevisionNumber = previousResultInfo.entry.commit.$.revision;
-    previousTagNumber = previousArrTagsOrBranchesSorted;
-    previousTagUrl = previousUrl;
-    previousTagBaseUrl = sListURL;
-
-    oReturnObject = {
-        current: {
-            tagNumber: currentTagNumber,
-            tagRevisionNumber: currentRevisionNumber,
-            tagUrl: currentTagUrl,
-            tagBaseUrl: currentTagBaseUrl,
-        },
-        previous: {
-            tagNumber: previousTagNumber,
-            tagRevisionNumber: previousRevisionNumber,
-            tagUrl: previousTagUrl,
-            tagBaseUrl: previousTagBaseUrl,
-        }
-    }
-    let future = {};
-
-
-
-
-    oReturnObject.toBeTagged = false
-    if (bSolutionOrComponentOnTrunk) {
-        futureTagNumber = semver.inc(arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1], 'minor');
-        futureTagUrl = previousTagUrl.replace(previousTagNumber, futureTagNumber)
-        future = {
-            tagNumber: futureTagNumber,
-            tagUrl: futureTagUrl.replace('"', ''),
-            tagBaseUrl: currentTagBaseUrl.replace('"', ''),
-        }
-        oReturnObject.future = future
-        oReturnObject.toBeTagged = true
-    }
-    return oReturnObject
-}
-
-async function getArrExternals(url, svnOptions) {
-
-    const svn_externals = await svnPropGetPromise('svn:externals', `${url}`, svnOptions);
-    return svn_externals.target.property._.split("\r\n");
-}
-
-async function setExternals(url, svnOptions) {
-
-    const svn_externals = await svnPropGetPromise('svn:externals', `${url}`, svnOptions);
-    return svn_externals.target.property._.split("\r\n");
-}
-

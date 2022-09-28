@@ -1,13 +1,8 @@
 /.vscode
+node_modules/
+/*test.js
 /all.json
 /format.json
-/include copy.json
-node_modules/
-/t.js
-/jiratest.js
-/svntest.js
-/testtemplate.js
-/tag*.json
 /tag*.json
 /*.xlsx
 roadmap.txt
