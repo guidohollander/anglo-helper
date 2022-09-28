@@ -96,7 +96,7 @@ module.exports = {
       type: 'boolean',
     })
     .option('component', {
-      description: "limit the set of components to (partly) match the specified string (case insenstive), i.e. --component '_CONTINUOUS_DELIVERY' or --component 'assessment'.",
+      description: "limit the set of components to (partly) match the specified string (case insensitive), i.e. --component '_CONTINUOUS_DELIVERY' or --component 'assessment'.",
       type: 'string',
     })
     .option('startRow', {
@@ -129,8 +129,9 @@ module.exports = {
       default: '',
       type: 'string',
     })
-    .option('solutionTagFrom', {
-      description: 'specify an existing solution tag to start comparing from, instead of the default, previous tag',
+    .option('solutionFrom', {
+      // eslint-disable-next-line quotes
+      description: `specify an existing solution tag or branch to start comparing from, instead of the default, previous tag or branch. Example: --solutionFrom 'tags/1.9.0' or --solutionFrom 'branches/1.8.0'`,
       default: '',
       type: 'string',
     })

@@ -3,6 +3,7 @@ const beep = require('node-beep');
 const clargs = require('./arguments');
 const consoleLog = require('./consoleLog');
 const promises = require('./promises');
+const state = require('./state');
 
 function alertTerminal(mode) {
   if ((mode === 'F') || (mode.includes('U')) || (mode.includes('S')) || (mode === 'C')) {
@@ -84,12 +85,29 @@ function tidyArrayContent(entry) {
   }
   return { path, name };
 }
+function move(array, from, to, on = 1) {
+  // eslint-disable-next-line no-sequences
+  return array.splice(to, 0, ...array.splice(from, on)), array;
+}
+
+function moveComponent(array) {
+  let componentIndex;
+  const portalName = `${state.app.toUpperCase()} Portal`;
+  componentIndex = array.findIndex((object) => object.key === '_CONTINUOUS_DELIVERY');
+  move(array, componentIndex, array.length - 1);
+  if (clargs.argv.select) {
+    componentIndex = array.findIndex((object) => object.key === portalName);
+    move(array, componentIndex, 0);
+  }
+}
+
 module.exports = {
   appIsFullyComparable,
   getProbableApp,
   getProfileSequenceNumber,
   getWorkingCopyFolder,
   memorable,
+  moveComponent,
   tidyArrayContent,
   unifyPath,
 };

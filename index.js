@@ -10,7 +10,6 @@ const xlsx = require('xlsx');// npm install xlsx
 
 const anglo = require('./anglo');
 const clargs = require('./arguments');
-const componentToTrunk = require('./componentToTrunk');
 const consoleLog = require('./consoleLog');
 const db = require('./db');
 const promises = require('./promises');
@@ -25,6 +24,7 @@ const subTaskUpdate = require('./subTask_update');
 const svn = require('./svn');
 const arrSolutions = require('./solutions.json');
 const pjson = require('./package.json');
+const componentToTrunk = require('./componentToTrunk');
 
 // app context
 state.oAppContext = anglo.getProbableApp();
@@ -77,20 +77,20 @@ async function main() {
     }
     // gather information about current solution for the tag report
     state.currentSolution = arrSolutions.find((s) => s.name === state.oSVNInfo.svnApp);
-    state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionTagFrom);
+    state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionFrom);
     // };
     let arrAll = [];
     consoleLog.showHeader();
     // get externals
     consoleLog.logNewLine('', 'gray');
-    consoleLog.logNewLine(`getting externals from current solution ${state.oSolution.current.tagNumber} [rev:${state.oSolution.current.tagRevisionNumber}]`, 'gray');
+    consoleLog.logNewLine(`getting externals from current solution ${state.oSolution.current.relativeUrl} [rev:${state.oSolution.current.tagRevisionNumber}]`, 'gray');
     state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
     fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
     if (clargs.argv.tagReport) {
-      consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.tagRevisionNumber}]`, 'gray');
+      consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.relativeUrl}]`, 'gray');
       state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl
       fs.writeFileSync('./previous_externals_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
-      consoleLog.logNewLine(`determine difference between ${state.oSolution.previous.tagNumber} and ${state.oSolution.current.tagNumber} rev:{${state.oSolution.previous.tagRevisionNumber}:${state.oSolution.current.tagRevisionNumber}}`, 'gray');
+      consoleLog.logNewLine(`determine difference between ${state.oSolution.previous.relativeUrl} and ${state.oSolution.current.relativeUrl} rev:{${state.oSolution.previous.tagRevisionNumber}:${state.oSolution.current.tagRevisionNumber}}`, 'gray');
       // difference
       state.arrExt = state.arrSVNExternalsCurrentSolutionTag.filter((x) => !state.arrSVNExternalsPreviousSolutionTag.includes(x));
       fs.writeFileSync('./externals_difference_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
@@ -129,6 +129,7 @@ async function main() {
           path: decodeURI(tidied.path),
           componentBaseFolder: decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
           componentName: getComponentName(decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')),
+          relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/'),
           isExternal: true,
           isCoreComponent: !tidied.name.toLowerCase().includes('interface def'),
           isInterfaceDefinition: tidied.name.toLowerCase().includes('interface def'),
@@ -237,10 +238,7 @@ async function main() {
       arrAll = arrAll.filter((project) => project.key.toLowerCase().includes(clargs.argv.component.toLowerCase()));
     }
     arrAll.sort((a, b) => a.key.localeCompare(b.key));
-    // move _CONTINUOUS_DELIVERY to last position
-    if (arrAll.findIndex((p) => p.key === '_CONTINUOUS_DELIVERY') !== -1) {
-      arrAll.push(arrAll.shift());
-    }
+    anglo.moveComponent(arrAll);
     if (clargs.argv.writeJsonFiles) {
       fs.writeFileSync('./all.json', JSON.stringify(arrAll, null, 2));
     }
@@ -427,7 +425,7 @@ async function main() {
         componentCollection: state.arrTagReportCollection,
       });
       const filenameEnvironmentPart = state.oSVNInfo.remoteRepo.substring(state.oSVNInfo.remoteRepo.indexOf('/svn/') + 5).replaceAll('/', '_').replaceAll('.', '_').toLowerCase();
-      const tagReportFilename = `${state.workingCopyFolder}tagreport_${filenameEnvironmentPart}`;
+      const tagReportFilename = `${state.workingCopyFolder}tagreport_${filenameEnvironmentPart}${clargs.argv.component ? `_component_${clargs.argv.component}` : ''}`;
       if (state.arrTagReportCollection && state.arrTagReportCollection.length > 0 && issueCount && issueCount > 0) {
         consoleLog.logNewLine(`Tag report has been stored as ${tagReportFilename}.json. It contains ${state.arrTagReportCollection.length} components and ${issueCount} issues`, 'gray');
       }

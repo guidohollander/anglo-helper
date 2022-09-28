@@ -137,23 +137,27 @@ async function getTag(url, tagNumberinPreviousSolution) {
   const currentResultInfo = await promises.svnInfoPromise(`"${url}"`);
   const currentRevisionNumber = currentResultInfo.entry.commit.$.revision;
   const currentTagNumber = bSolutionOrComponentOnTrunk ? 'trunk' : arrTagsOrBranches.find((i) => i.name === arrTagsOrBranchesSorted[indexCurrent]).name;
+  const currentRelativeUrl = currentResultInfo.entry['relative-url'].replaceAll('^/', '');
   const currentTagUrl = url;
   const currentTagBaseUrl = sListURL;
   const previousUrl = url.replace(currentArrTagsOrBranchesSorted, bSolutionOrComponentOnTrunk ? `${derivedSvnTrunkBranchOrTagPart}/` : '') + previousArrTagsOrBranchesSorted;
   const previousResultInfo = await promises.svnInfoPromise(`"${previousUrl}"`);
   const previousRevisionNumber = previousResultInfo.entry.commit.$.revision;
   const previousTagNumber = previousArrTagsOrBranchesSorted;
+  const previousRelativeUrl = previousResultInfo.entry['relative-url'].replaceAll('^/', '');
   const previousTagUrl = previousUrl;
   const previousTagBaseUrl = sListURL;
   const oReturnObject = {
     current: {
       tagNumber: currentTagNumber,
+      relativeUrl: currentRelativeUrl,
       tagRevisionNumber: currentRevisionNumber,
       tagUrl: currentTagUrl,
       tagBaseUrl: currentTagBaseUrl,
     },
     previous: {
       tagNumber: previousTagNumber,
+      relativeUrl: previousRelativeUrl,
       tagRevisionNumber: previousRevisionNumber,
       tagUrl: previousTagUrl,
       tagBaseUrl: previousTagBaseUrl,
