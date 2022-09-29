@@ -2,10 +2,12 @@
 const inquirer = require('inquirer');
 const crypto = require('crypto');
 const fs = require('fs');
+const util = require('./util');
 const promises = require('./promises');
 const consoleLog = require('./consoleLog');
 const state = require('./state');
 const teams = require('./teams');
+const subTaskSwitch = require('./subTask_switch');
 
 inquirer.registerPrompt('search-list', require('inquirer-search-list'));
 
@@ -15,21 +17,28 @@ function getAllIndexes(arr, val) {
   return indexes;
 }
 
-async function updateExternal(arr, componentName, searchVal, replaceVal) {
-  const indexes = getAllIndexes(arr, componentName);
+async function updateExternal(arrComponents, arrExternals, componentName, searchVal, replaceVal) {
+  const arrUpdatedComponentEntries = [];
+  const indexes = getAllIndexes(arrExternals, componentName);
   // eslint-disable-next-line no-restricted-syntax
   for await (const iExternal of indexes) {
-    const oldString = arr[iExternal];
+    const oldString = arrExternals[iExternal];
     // eslint-disable-next-line no-param-reassign
-    arr[iExternal] = arr[iExternal].replaceAll(searchVal, replaceVal);
-    console.log(`Updated from ${oldString} to ${arr[iExternal]}`);
+    arrExternals[iExternal] = arrExternals[iExternal].replaceAll(searchVal, replaceVal);
+    console.log(`Updated from ${oldString} to ${arrExternals[iExternal]}`);
+    // match updated external from file with component, so we know which one to switch
+    const matchingComponentEntry = arrComponents.find((component) => decodeURI(oldString.split(' ')[0]) === component.path);
+    arrUpdatedComponentEntries.push(matchingComponentEntry);
   }
-  return arr;
+  return {
+    externals: arrExternals.join('\r\n'),
+    updateComponentEntries: arrUpdatedComponentEntries,
+  };
 }
 
 async function perform(arr) {
   const oarrQ = arr.filter((e) => e.isExternal && e.isTagged && e.isCoreComponent);
-  const arrQ = Object.values(oarrQ).map((i) => ({ value: i, name: `${i.key} [${i.relativeUrl}]` }));
+  const arrQ = Object.values(oarrQ).map((i) => ({ value: { selectedComponent: i, componentCollection: arr }, name: `${i.key} [${i.relativeUrl}]` }));
 
   if (!state.oSolution.current.relativeUrl === 'trunk') consoleLog('Warning!! Your repository is not pointing towards the trunk!', 'red');
   await inquirer
@@ -37,12 +46,12 @@ async function perform(arr) {
       {
         type: 'search-list',
         message: 'Search and select solution component to switch to trunk',
-        name: 'selectedComponent',
+        name: 'componentSelector',
         choices: arrQ,
       },
       {
         type: 'boolean',
-        message: (question) => `Are you sure you want to switch '${question.selectedComponent.key}' from ${question.selectedComponent.relativeUrl} to trunk?`,
+        message: (question) => `Are you sure you want to switch '${question.componentSelector.selectedComponent.key}' from ${question.componentSelector.selectedComponent.relativeUrl} to trunk?`,
         name: 'areyousure',
         default: true,
       },
@@ -59,14 +68,17 @@ async function perform(arr) {
         if (answers.areyousure) {
           const oExternals = await promises.svnPropGetPromise('svn:externals', state.oSVNInfo.remoteRepo, svnOptions);
           const externals = oExternals.target.property._.split('\r\n');
-          let updatedExternals = await updateExternal(externals, answers.selectedComponent.key, answers.selectedComponent.relativeUrl, 'trunk');
-          updatedExternals = updatedExternals.join('\r\n');
+          const oUpdatedExternals = await updateExternal(answers.componentSelector.componentCollection, externals, answers.componentSelector.selectedComponent.key, answers.componentSelector.selectedComponent.relativeUrl, 'trunk');
           fMod = `ext_mod_${crypto.randomBytes(8).toString('hex')}`;
-          fs.writeFileSync(fMod, updatedExternals);
-          const svnCommand = `svnmucc propsetf svn:externals ${fMod} ${state.oSVNInfo.remoteRepo} -m "${answers.jiraIssue ? answers.jiraIssue : ''} auto update external ${answers.selectedComponent.key} from ${answers.selectedComponent.relativeUrl} to trunk"`;
+          fs.writeFileSync(fMod, oUpdatedExternals.externals);
+          const svnCommand = `svnmucc propsetf svn:externals ${fMod} ${state.oSVNInfo.remoteRepo} -m "${answers.jiraIssue ? answers.jiraIssue : ''} auto update external ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk"`;
           await util.execShellCommand(svnCommand);
           fs.unlinkSync(fMod);
-          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()}: ${answers.selectedComponent.key} from ${answers.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
+          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
+          // eslint-disable-next-line no-restricted-syntax
+          for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
+            await subTaskSwitch.perform(componentEntry);
+          }
         }
       } catch (error) {
         console.dir(error);
