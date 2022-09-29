@@ -5,7 +5,7 @@
   "description": "Anglo helper",
   "main": "index.js",
   "bin": {
-    "anglo-helper": "node ./index.js"
+    "anglo-helper": "./index.js"
   },
   "preferGlobal": true,
   "author": "Guido Hollander",
