@@ -280,6 +280,7 @@ async function main() {
     // loop all folder in arrAll
     const bEntryAction = !clargs.argv.componentToTrunk;
     if (bEntryAction) {
+      // eslint-disable-next-line no-restricted-syntax
       for await (const entry of arrAll) {
         // if startRow or startProject have been set: start from there, otherwise start from the first
         if ((progressCounter >= clargs.argv.startRow) && (entry.key.toLowerCase() >= clargs.argv.startProject.toLowerCase())) {
@@ -346,6 +347,7 @@ async function main() {
             try {
               await util.execCommand(execCommand);
             } catch (error) {
+              // eslint-disable-next-line no-console
               console.dir('Errors while executing:', execCommand);// chalk.redBright(
               beep(3);
             }
@@ -360,6 +362,7 @@ async function main() {
     const SummaryCount = (state.arrMissingCollection.length + state.arrSwitchUpdateCollection.length + state.arrSVNUpdatedCollection.length + state.arrFlywayUpdatedCollection.length + state.arrCompareSpecificUpdateCollection.length + state.arrSVNPotentialUpdateCollection.length + state.arrDeploymentCheckCollection.length + state.arrTagReportCollection.length);
     if (SummaryCount > 0) {
       consoleLog.logNewLine('', 'gray');
+      // eslint-disable-next-line no-console
       console.log('Summary:', SummaryCount.toString().trim(), `(potential) updates for ${state.app}`);
       beep(2);
     } else {
@@ -370,21 +373,25 @@ async function main() {
     if (state.arrMissingCollection.length > 0) {
       consoleLog.logNewLine(`${state.arrMissingCollection.length} [M]issing project(s): Choose "Import / General / Existing Projects into workspace" in Be Informed Studio`, 'red');
     }
+    // eslint-disable-next-line no-restricted-syntax
     for (const entry of state.arrSwitchUpdateCollection) {
       consoleLog.logNewLine(`SVN [S]witch: ${entry}`, 'green');
     }
     if (state.arrSwitchUpdateCollection.length > 0) {
       consoleLog.logNewLine(`${state.arrSwitchUpdateCollection.length} [S]witched project(s) require a rebuild / validate in Be Informed.`, 'red');
     }
+    // eslint-disable-next-line no-restricted-syntax
     for (const entry of state.arrSVNUpdatedCollection) {
       consoleLog.logNewLine(`SVN [U]pdate: ${entry}`, 'green');
     }
     if (state.arrSVNUpdatedCollection.length > 0) {
       consoleLog.logNewLine(`${state.arrSVNUpdatedCollection.length} [U]pdated project(s) require a rebuild / validate in Be Informed.`, 'red');
     }
+    // eslint-disable-next-line no-restricted-syntax
     for (const entry of state.arrFlywayUpdatedCollection) {
       consoleLog.logNewLine(`[F]lyway: ${entry}`, 'gray');
     }
+    // eslint-disable-next-line no-restricted-syntax
     for (const entry of state.arrSVNPotentialUpdateCollection) {
       consoleLog.logNewLine(`Potential [Ŭ]pdates: ${entry}`, 'cyan');
     }
@@ -444,6 +451,7 @@ async function main() {
         xlsx.utils.book_append_sheet(newWB, newWSIssue, 'issues');
         xlsx.writeFile(newWB, `${tagReportFilename}.xlsx`);// file name as param
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.dir('Errors while exporting to excel. Is file closed?');
         beep(3);
       }
@@ -451,6 +459,7 @@ async function main() {
     consoleLog.showBIRunningWarning(state.beInformedRunning);
   } catch (error) {
     // console.log(error)
+    // eslint-disable-next-line no-console
     console.log('Errors occurred:', error);// chalk.redBright(
     beep(3);
   }
@@ -595,6 +604,7 @@ async function prequal() {
           state.profile.filename = profileFilename;
           main();
         } else {
+          // eslint-disable-next-line no-console
           console.log('Unable to access database');
           beep(2);
           process.exit();
@@ -602,8 +612,10 @@ async function prequal() {
       })
       .catch((error) => {
         if (error.isTtyError) {
+          // eslint-disable-next-line no-console
           console.log('Your console environment is not supported!');
         } else {
+          // eslint-disable-next-line no-console
           console.dir(error);
         }
       });
@@ -640,8 +652,10 @@ async function prequal() {
       })
       .catch((error) => {
         if (error.isTtyError) {
+          // eslint-disable-next-line no-console
           console.log('Your console environment is not supported!');
         } else {
+          // eslint-disable-next-line no-console
           console.dir(error);
         }
       });
@@ -660,6 +674,7 @@ async function prequal() {
   }
   // perform action related checks
   if ((clargs.argv.tagReport) && (!state.profile.jiraUsername || !state.profile.jiraUsername)) {
+    // eslint-disable-next-line no-console
     console.log('Specify jiraUsername / jiraUsername in active profile or as command line argument');
     process.exit();
   }
