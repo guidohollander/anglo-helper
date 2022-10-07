@@ -10,18 +10,19 @@ function alertTerminal(mode) {
     beep(1);
   }
 }
-function determineProbableAngloApp(path) {
-  let probableAnloApp;
-  if ((path.toLowerCase().includes('mbs')) && (!path.toLowerCase().includes('mts'))) {
-    probableAnloApp = 'mbs';
-  } else if ((path.toLowerCase().includes('mts')) && (!path.toLowerCase().includes('mbs'))) {
-    probableAnloApp = 'mts';
+function determineProbableAngloApp(angloPath) {
+  let probableAngloApp;
+  if ((angloPath.toLowerCase().includes('mbs')) && (!angloPath.toLowerCase().includes('mts'))) {
+    probableAngloApp = 'mbs';
+  } else if ((angloPath.toLowerCase().includes('mts')) && (!angloPath.toLowerCase().includes('mbs'))) {
+    probableAngloApp = 'mts';
   }
-  return probableAnloApp;
+  return probableAngloApp;
 }
 function appIsFullyComparable(oAppContext, profile) {
   return (oAppContext.app === determineProbableAngloApp(profile.compareSpecificRootFolder.toLowerCase()));
 }
+
 function getProbableApp() {
   const svnDir = '.svn';
   const cwd = process.cwd().toLowerCase();
@@ -47,6 +48,7 @@ function getProbableApp() {
     workingCopyFolder: cwd,
   };
 }
+
 async function getProfileSequenceNumber() {
   const files = await promises.globPromise('profile_[0-9]*.json');
   if (files.length > 0) {
@@ -54,8 +56,8 @@ async function getProfileSequenceNumber() {
   }
   return 0;
 }
-function unifyPath(path) {
-  return path.toString().toLowerCase().replaceAll('\\', '/');
+function unifyPath(angloPath) {
+  return angloPath.toString().toLowerCase().replaceAll('\\', '/');
 }
 function getWorkingCopyFolder(oAppContext) {
   if (clargs.argv.workingCopyFolder) {

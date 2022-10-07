@@ -68,7 +68,7 @@ async function perform(componentEntry) {
       consoleLog.logNewLine(`[${jiraProjectCounter}/${arrUniqueJiraProjects.length}] adding fix version '${tagReportExecutionSolutionData.tagName}' to project '${jiraProject}'`, 'green');
       if (bSolutionJiraHandlingEnabled) {
         try {
-          await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, state.profile.domain, jiraProject, tagReportExecutionSolutionData.tagName, false);
+          await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionSolutionData.tagName, false);
         } catch (error) {
           consoleLog.logNewLine(`Errors while executing addVersionIfNotExists: ${jiraProject} ${tagReportExecutionSolutionData.tagName}`, 'gray');
           beep(3);
@@ -88,7 +88,7 @@ async function perform(componentEntry) {
     // perform on sample project
     if (bSolutionJiraHandlingEnabled) {
       try {
-        await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, state.profile.domain, jiraIssue.jiraIssueNumber, tagReportExecutionSolutionData.tagName);
+        await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionSolutionData.tagName);
       } catch (error) {
         consoleLog.logNewLine(`Errors while executing updateJiraIssueFixVersion: ${jiraIssue.jiraIssueNumber} ${tagReportExecutionSolutionData.tagName}`, 'gray');
         beep(3);
@@ -143,7 +143,7 @@ async function perform(componentEntry) {
         consoleLog.logNewLine(`[${jiraProjectCounter}/${tagReportExecutionComponentData.jiraProjects.length}] adding fix version '${tagReportExecutionComponentData.tagName}' to project '${jiraProject}'`, 'green');
         if (bComponentJiraHandlingEnabled) {
           try {
-            await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, state.profile.domain, jiraProject, tagReportExecutionComponentData.tagName, true);
+            await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionComponentData.tagName, true);
           } catch (error) {
             consoleLog.logNewLine(`Errors while executing addVersionIfNotExists: ${jiraProject}${tagReportExecutionComponentData.tagName}`, 'gray');
             beep(3);
@@ -160,7 +160,7 @@ async function perform(componentEntry) {
         // perform on sample project
         if (bComponentJiraHandlingEnabled) {
           try {
-            await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, state.profile.domain, jiraIssue.jiraIssueNumber, tagReportExecutionComponentData.tagName);
+            await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionComponentData.tagName);
           } catch (error) {
             consoleLog.logNewLine(`Errors while executing updateJiraIssueFixVersion: ${jiraIssue.jiraIssueNumber} ${tagReportExecutionComponentData.tagName}`, 'gray');
             beep(3);

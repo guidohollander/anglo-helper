@@ -1,7 +1,6 @@
 const inquirer = require('inquirer');
 const semver = require('semver');
 const fs = require('fs');
-const path = require('path');
 const consoleLog = require('./consoleLog');
 const clargs = require('./arguments');
 const promises = require('./promises');
@@ -13,14 +12,32 @@ async function getArrExternals(url) {
   const svnExternals = await promises.svnPropGetPromise('svn:externals', `${url}`, svnOptions);
   return svnExternals.target.property._.split('\r\n');
 }
+
+async function getProbableSolution() {
+  const cwd = process.cwd().toLowerCase();
+  let probableSolution = '';
+  if (clargs.argv.solution) {
+    probableSolution = clargs.argv.solution;
+  } else if ((fs.existsSync('./MBS Portal/.svn/'))) {
+    const p = 'MBS Portal';
+    const resultInfo = await promises.svnInfoPromise(`"${cwd}\\${p}"`, svnOptions);
+    probableSolution = resultInfo.entry.url.split('/')[resultInfo.entry.url.split('/').indexOf('svn') + 1];
+  } else if ((fs.existsSync('./MTS Portal/.svn/'))) {
+    const p = 'MTS Portal';
+    const resultInfo = await promises.svnInfoPromise(`"${cwd}\\${p}"`, svnOptions);
+    probableSolution = resultInfo.entry.url.split('/')[resultInfo.entry.url.split('/').indexOf('svn') + 1];
+  } else {
+    consoleLog.logNewLine('Solution could not be determined automatically. Please provide an --solution as argument.', 'gray');
+    process.exit();
+  }
+  return probableSolution;
+}
+
 async function getSVNContext(app, workingCopyFolder, switchedTo) {
   const dirWithQuotedProjectName = (`${workingCopyFolder}\\${JSON.stringify(`${app.toUpperCase()} Portal`)}`).replace(/[\\/]+/g, '/');// .replace(/^([a-zA-Z]+:|\.\/)/, '');
   const dir = `.//${app.toUpperCase()} Portal`;
-  let appRoot = `https://svn.${state.profile ? state.profile.domain : clargs.argv.domain}/svn/${state.app}_anguilla`;
-  if (!clargs.argv.domain && !fs.existsSync(path.normalize(`${workingCopyFolder}profile_1.json`))) {
-    consoleLog.logNewLine('Cannot determine domain, please specify your organisational domain as argument, ie: --domain mycompany.org or --domain microsoft.com', 'gray');
-    process.exit(0);
-  }
+  state.oAppContext.solution = await getProbableSolution();
+  let appRoot = `https://svn.bearingpointcaribbean.com/svn/${state.oAppContext.solution}`;
   if (!fs.existsSync(dir)) {
     consoleLog.renderTitleToVersion();
     let qBranches;
@@ -31,7 +48,10 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
         svnOptions.password = clargs.argv.svnOptionsPassword;
       }
       const svnToVersionBranchesChoices = await promises.svnListPromise(`${appRoot}/branches`, svnOptions);
-      qBranches = svnToVersionBranchesChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-10).map((b) => 'branches/'.concat(b.name));
+      const bHasPrevious = (Object.prototype.hasOwnProperty.call(svnToVersionBranchesChoices, 'entry'));
+      if (bHasPrevious) {
+        qBranches = svnToVersionBranchesChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-10).map((b) => 'branches/'.concat(b.name));
+      } else qBranches = [];
     } catch (error) {
       consoleLog.logThisLine('Can\'t login into SVN. Provide them on the command line, at least once, using --svnOptionsUsername [username] --svnOptionsPassword [password] ', 'red');
       process.exit(0);
@@ -49,7 +69,7 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
     await inquirer
       .prompt(questionsToVersion)
       .then(async (answersToVersion) => {
-        const url = `https://svn.${state.profile ? state.profile.domain : clargs.argv.domain}/svn/${state.app.toUpperCase()}_ANGUILLA/${answersToVersion.selectedSVNVersion}/${state.app.toUpperCase()} Portal`;
+        const url = `https://svn.bearingpointcaribbean.com/svn/${state.oAppContext.solution.toUpperCase()}/${answersToVersion.selectedSVNVersion}/${state.app.toUpperCase()} Portal`;
         const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`;
         await util.execShellCommand(execCommand);
       })
@@ -115,15 +135,20 @@ async function getTag(url, tagNumberinPreviousSolution) {
   let currentArrTagsOrBranchesSorted = [];
   let previousArrTagsOrBranchesSorted = [];
   const lsTagsOrBranches = await promises.svnListPromise(`"${sListURL}/${derivedSvnTrunkBranchOrTagPart}"`);
-  // create array, only of numeric tags
-  // eslint-disable-next-line no-restricted-globals
-  const arrTagsOrBranches = lsTagsOrBranches.list.entry.filter((item) => !isNaN(item.name.charAt(0)));
-  // properly order semantic tags on unfiltered arrTagsOrBranches
-  if (arrTagsOrBranches.length > 1) {
-    arrTagsOrBranchesSorted = arrTagsOrBranches.map((a) => a.name.replace(/\d+/g, (n) => +n + 100000)).sort().map((a) => a.replace(/\d+/g, (n) => +n - 100000));
-  } else {
-    // nothing to be sorted since there's only 1
-    arrTagsOrBranchesSorted = arrTagsOrBranches;
+
+  const bHasPrevious = (Object.prototype.hasOwnProperty.call(lsTagsOrBranches, 'entry'));
+  let arrTagsOrBranches;
+  if (bHasPrevious) {
+    // create array, only of numeric tags
+    // eslint-disable-next-line no-restricted-globals
+    arrTagsOrBranches = lsTagsOrBranches.list.entry.filter((item) => !isNaN(item.name.charAt(0)));
+    // properly order semantic tags on unfiltered arrTagsOrBranches
+    if (arrTagsOrBranches.length > 1) {
+      arrTagsOrBranchesSorted = arrTagsOrBranches.map((a) => a.name.replace(/\d+/g, (n) => +n + 100000)).sort().map((a) => a.replace(/\d+/g, (n) => +n - 100000));
+    } else {
+      // nothing to be sorted since there's only 1
+      arrTagsOrBranchesSorted = arrTagsOrBranches;
+    }
   }
   // force trunk in sorted array
   arrTagsOrBranchesSorted.unshift('trunk');
@@ -140,13 +165,29 @@ async function getTag(url, tagNumberinPreviousSolution) {
   const currentRelativeUrl = currentResultInfo.entry['relative-url'].replaceAll('^/', '');
   const currentTagUrl = url;
   const currentTagBaseUrl = sListURL;
-  const previousUrl = url.replace(currentArrTagsOrBranchesSorted, bSolutionOrComponentOnTrunk ? `${derivedSvnTrunkBranchOrTagPart}/` : '') + previousArrTagsOrBranchesSorted;
-  const previousResultInfo = await promises.svnInfoPromise(`"${previousUrl}"`);
-  const previousRevisionNumber = previousResultInfo.entry.commit.$.revision;
-  const previousTagNumber = previousArrTagsOrBranchesSorted;
-  const previousRelativeUrl = previousResultInfo.entry['relative-url'].replaceAll('^/', '');
-  const previousTagUrl = previousUrl;
-  const previousTagBaseUrl = sListURL;
+  let previous;
+  let previousTagNumber;
+  let previousTagUrl;
+  let previousTagBaseUrl;
+
+  if (bHasPrevious) {
+    const previousUrl = url.replace(currentArrTagsOrBranchesSorted, bSolutionOrComponentOnTrunk ? `${derivedSvnTrunkBranchOrTagPart}/` : '') + previousArrTagsOrBranchesSorted;
+    const previousResultInfo = await promises.svnInfoPromise(`"${previousUrl}"`);
+    const previousRevisionNumber = previousResultInfo.entry.commit.$.revision;
+    previousTagNumber = previousArrTagsOrBranchesSorted;
+    const previousRelativeUrl = previousResultInfo.entry['relative-url'].replaceAll('^/', '');
+    previousTagUrl = previousUrl;
+    previousTagBaseUrl = sListURL;
+
+    previous = {
+      tagNumber: previousTagNumber,
+      relativeUrl: previousRelativeUrl,
+      tagRevisionNumber: previousRevisionNumber,
+      tagUrl: previousTagUrl,
+      tagBaseUrl: previousTagBaseUrl,
+    };
+  }
+
   const oReturnObject = {
     current: {
       tagNumber: currentTagNumber,
@@ -155,19 +196,22 @@ async function getTag(url, tagNumberinPreviousSolution) {
       tagUrl: currentTagUrl,
       tagBaseUrl: currentTagBaseUrl,
     },
-    previous: {
-      tagNumber: previousTagNumber,
-      relativeUrl: previousRelativeUrl,
-      tagRevisionNumber: previousRevisionNumber,
-      tagUrl: previousTagUrl,
-      tagBaseUrl: previousTagBaseUrl,
-    },
+    previous,
   };
   let future = {};
   oReturnObject.toBeTagged = false;
+
+  let futureTagNumber;
+  let futureTagUrl;
+
   if (bSolutionOrComponentOnTrunk) {
-    const futureTagNumber = semver.inc(arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1], 'minor');
-    const futureTagUrl = previousTagUrl.replace(previousTagNumber, futureTagNumber);
+    if (bHasPrevious) {
+      futureTagNumber = semver.inc(arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1], 'minor');
+      futureTagUrl = previousTagUrl.replace(previousTagNumber, futureTagNumber);
+    } else {
+      futureTagNumber = '1.0';
+      futureTagUrl = currentTagUrl.replace('trunk', `${derivedSvnTrunkBranchOrTagPart}/${futureTagNumber}`);
+    }
     future = {
       tagNumber: futureTagNumber,
       tagUrl: futureTagUrl.replace('"', ''),
@@ -180,6 +224,7 @@ async function getTag(url, tagNumberinPreviousSolution) {
 }
 module.exports = {
   getArrExternals,
+  getProbableSolution,
   getSVNContext,
   getTag,
   svnOptions,

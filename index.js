@@ -3,7 +3,7 @@ const clear = require('clear');
 const fs = require('fs');
 const beep = require('node-beep');
 const inquirer = require('inquirer');
-const util = require('util');
+
 const path = require('path');
 const xlsx = require('xlsx');// npm install xlsx
 
@@ -24,9 +24,11 @@ const svn = require('./svn');
 const arrSolutions = require('./solutions.json');
 const pjson = require('./package.json');
 const componentToTrunk = require('./componentToTrunk');
+const util = require('./util');
 
 // app context
 state.oAppContext = anglo.getProbableApp();
+state.oAppContext.solution = svn.getProbableSolution();
 state.oAppContext.version = pjson.version;
 state.oAppContext.name = pjson.name;
 state.oAppContext.descriptiveName = pjson.descriptivename;
@@ -42,14 +44,6 @@ async function main() {
     if (state.profile.svnOptionsUsername && state.profile.svnOptionsPassword) {
       svn.svnOptions.username = state.profile.svnOptionsUsername;
       svn.svnOptions.password = state.profile.svnOptionsPassword;
-    }
-    // add domain to profile so it can be left out of the source
-    if (!state.profile.domain && fs.existsSync(state.profile.filename)) {
-      state.profile.domain = state.oSVNInfo.URL.split('/')[2].split('.').splice(-2).join('.');
-      const data = fs.readFileSync(state.profile.filename);
-      const json = JSON.parse(data);
-      json.domain = state.profile.domain;
-      fs.writeFileSync(state.profile.filename, JSON.stringify(json));
     }
     // handle command line switch to state.profile overrides
     if (clargs.argv.switch) state.profile.autoSwitch = clargs.argv.switch;
@@ -345,7 +339,7 @@ async function main() {
             const url = state.oSVNInfo.baseURL + entry.path.replace(/^\//, ''); // remove leading / from path if necessary
             const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`;
             try {
-              await util.execCommand(execCommand);
+              await util.execShellCommand(execCommand);
             } catch (error) {
               // eslint-disable-next-line no-console
               console.dir('Errors while executing:', execCommand);// chalk.redBright(
@@ -509,14 +503,14 @@ async function prequal() {
         name: 'jiraUsername',
         default: clargs.argv.jiraUsername,
         message: 'Jira: Provide your JIRA user name.',
-        when: (answers) => answers || clargs.argv.enableJiraIntegration,
+        when: () => clargs.argv.enableJiraIntegration,
       },
       {
         type: 'input',
         name: 'jiraPassword',
-        default: clargs.argv.svnOptionsPassword,
+        default: clargs.argv.jiraPassword,
         message: 'Jira: Please provide your JIRA password. ',
-        when: (answers) => clargs.argv.enableJiraIntegration && answers.jiraUsername,
+        when: (answers) => clargs.argv.enableJiraIntegration || answers.jiraUsername,
       },
       {
         type: 'confirm',
@@ -574,8 +568,8 @@ async function prequal() {
       {
         type: 'input',
         name: 'compareSpecificRootFolder',
-        default: `c:/repo/${state.app}_anguilla_21/`,
-        message: `Specific compare: Please provide the path to the root of another workspace folder. Use forward slashes, for example 'c:/repo/${state.app}_anguilla_21/'`,
+        default: `c:/repo/${state.app}/`,
+        message: `Specific compare: Please provide the path to the root of another workspace folder. Use forward slashes, for example 'c:/repo/${state.app}/'`,
         when: (answers) => answers.compareSpecific,
       },
       {

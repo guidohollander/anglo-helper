@@ -1,4 +1,5 @@
 const yargs = require('yargs');
+const arrSolutions = require('./solutions.json');
 
 module.exports = {
   argv: yargs
@@ -6,9 +7,9 @@ module.exports = {
       describe: 'choose an app',
       choices: ['mbs', 'mts'],
     })
-    .option('domain', {
-      describe: 'your company domain. It will be used as domain for svn and jira urls. Do not prefix with protocol info, like https:// and also do not use slashes. Example: microsoft.com or myorganisation.org',
-      type: 'string',
+    .option('solution', {
+      describe: 'choose a solution',
+      choices: arrSolutions.map(({ name }) => name),
     })
     .option('workingCopyFolder', {
       description: 'specify working copy folder',
