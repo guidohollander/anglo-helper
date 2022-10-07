@@ -239,8 +239,12 @@ async function main() {
     const processLookupResultList = await promises.processLookup({ command: 'Be Informed AMS.exe', psargs: state.app });
     processLookupResultList.forEach((process) => {
       // use -data argument to be more specific in determining when be informed is running
-      if (process && ((JSON.stringify(process.arguments).toLowerCase().includes('-data') && JSON.stringify(process.arguments).toLowerCase().includes(state.app.toLowerCase())) || (!JSON.stringify(process.arguments).toLowerCase().includes('-data') && !clargs.argv.forceSVN))) {
-        state.beInformedRunning = true;
+      if (process) {
+        if (JSON.stringify(process.arguments).toLowerCase().includes('-data') && JSON.stringify(process.arguments).toLowerCase().includes(state.app.toLowerCase())) {
+          if (!clargs.argv.forceSVN) {
+            state.beInformedRunning = true;
+          }
+        }
       }
     });
     const actions = [];
