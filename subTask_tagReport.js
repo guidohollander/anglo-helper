@@ -1,5 +1,6 @@
 /* eslint-disable no-undef */
 /* eslint-disable no-restricted-syntax */
+const semver = require('semver');
 const clargs = require('./arguments');
 const consoleLog = require('./consoleLog');
 const jira = require('./jira');
@@ -80,9 +81,11 @@ async function perform(componentEntry) {
                       jiraIssueNumber: singularJiraIssueNumber,
                       jiraIssueDescription: issueSummary,
                       issueStatus,
+                      impact: bComponentLevelMajorTagNumberIncrease,
                       commitMessages: [],
                     },
                   );
+
                   consoleLog.logNewLine('', 'gray');
                   if (bExternalComponent) {
                     consoleLog.logThisLine(`add:      ${bExternalComponent ? componentEntry.componentName : 'internal'} / ${singularJiraIssueNumber}`, 'green');
@@ -110,17 +113,22 @@ async function perform(componentEntry) {
             }
           }
         }
-        // let derivedNewTagNumber;
-        // if(bExternalComponent) {
-        //     if(componentEntry.isTrunk ) {
-        //         derivedNewTagNumber = semver.inc(oTo.tagNumber,bComponentLevelMajorTagNumberIncrease?'major':'minor')
-        //     } else {
-        //         derivedNewTagNumber = oTo.oCurrentRevision.tagNumber
-        //     }
-        // } else
-        // if(bInternalComponent) {
-        //     derivedNewTagNumber = state.oSolution.current.tagNumber
-        // }
+        let derivedNewTagNumber;
+        if (bExternalComponent) {
+          if (componentEntry.isTrunk) {
+            derivedNewTagNumber = semver.inc(thisComponent.previous.tagNumber, bComponentLevelMajorTagNumberIncrease ? 'minor' : 'patch');
+          } else {
+            derivedNewTagNumber = oTo.oCurrentRevision.tagNumber;
+          }
+        } else
+        if (bInternalComponent) {
+          derivedNewTagNumber = state.oSolution.current.tagNumber;
+        }
+        thisComponent.future.tagNumber = derivedNewTagNumber;
+        const t = thisComponent.future.tagUrl.split('/');
+        t[t.length - 1] = derivedNewTagNumber;
+        thisComponent.future.tagUrl = t.join('/');
+
         if (state.profile.verbose) {
           consoleLog.logNewLine('', 'gray');
           // eslint-disable-next-line no-nested-ternary

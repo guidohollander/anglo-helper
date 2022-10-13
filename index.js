@@ -78,18 +78,18 @@ async function main() {
     consoleLog.logNewLine('', 'gray');
     consoleLog.logNewLine(`getting externals from current solution ${state.oSolution.current.relativeUrl} [rev:${state.oSolution.current.tagRevisionNumber}]`, 'gray');
     state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
-    fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
+    // fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
     if (clargs.argv.tagReport) {
       consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.relativeUrl}]`, 'gray');
       state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl
-      fs.writeFileSync('./previous_externals_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
+      // fs.writeFileSync('./previous_externals_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
       consoleLog.logNewLine(`determine difference between ${state.oSolution.previous.relativeUrl} and ${state.oSolution.current.relativeUrl} rev:{${state.oSolution.previous.tagRevisionNumber}:${state.oSolution.current.tagRevisionNumber}}`, 'gray');
       // difference
       state.arrExt = state.arrSVNExternalsCurrentSolutionTag.filter((x) => !state.arrSVNExternalsPreviousSolutionTag.includes(x));
-      fs.writeFileSync('./externals_difference_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
+      // fs.writeFileSync('./externals_difference_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
       // intersection: result can be used as filter on internals since we want ALL internals except for the ones that correspond with unmodified tagged components
       const arrIntFilter = state.arrSVNExternalsCurrentSolutionTag.filter((x) => state.arrSVNExternalsPreviousSolutionTag.includes(x));
-      fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
+      // fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
       arrIntFilter.forEach((entry) => {
         const tidied = anglo.tidyArrayContent(entry);
         if (tidied.name !== '') {
@@ -132,6 +132,7 @@ async function main() {
           isTagged: decodeURI(tidied.path).toLocaleLowerCase().includes('/tags/'),
           isBranched: decodeURI(tidied.path).toLocaleLowerCase().includes('/branches/'),
           isTrunk: decodeURI(tidied.path).toLocaleLowerCase().includes('/trunk/'),
+          isFrontend: entry.name === 'FRONTEND',
         });
       }
     });
@@ -150,6 +151,7 @@ async function main() {
         isInternal: true,
         isCoreComponent: false,
         isInterfaceDefinition: false,
+        isFrontend: false,
         isSpecific: entry.name.toLowerCase().includes('specific'),
         isDomainSpecific: entry.name.toLowerCase().startsWith('dsc'),
         isSolutionComponent: entry.name.toLowerCase().startsWith('sc'),
@@ -296,7 +298,7 @@ async function main() {
             const resultInfo = await promises.svnInfoPromise(dirWithQuotedProjectName, svn.svnOptions);
             entry.svninfo = resultInfo;
             entry.local_project_repo = state.oSVNInfo.baseURL + entry.path;
-            const switchPath = state.oSVNInfo.baseURL + entry.path;
+            const switchPath = !entry.isFrontend ? state.oSVNInfo.baseURL + entry.path : entry.path;
             entry.match = (switchPath.toLowerCase() === decodeURI(resultInfo.entry.url).toLowerCase());
             // switch if autoswtich enabled local and remote do not match
             if (state.profile.autoSwitch) {

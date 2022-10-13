@@ -13,8 +13,7 @@ async function perform(componentEntry) {
     if (updated.includes('Updated to revision')) {
       if (state.profile.verbose) {
         anglo.memorable('[U]', state.arrSVNUpdatedCollection, componentEntry, updated, 'green');
-        consoleLog.logNewLine('', 'gray');
-        consoleLog.logNewLine('', 'gray');
+        // consoleLog.logNewLine('', 'gray');
       } else {
         anglo.memorable('[U]', state.arrSVNUpdatedCollection, componentEntry, updated, 'green');
       }

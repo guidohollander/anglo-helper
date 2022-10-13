@@ -71,12 +71,17 @@ function memorable(symbol, collection, entry, payload, color) {
   collection.push(entry.key);
 }
 function tidyArrayContent(entry) {
+  let inputEntry = entry;
+  if (inputEntry.includes(state.oSVNInfo.baseURL)) {
+    inputEntry = inputEntry.replace(state.oSVNInfo.baseURL, '/');
+  }
+
   let name = '';
   let item;
-  if (entry.includes('\'')) {
-    item = entry.split(" '");
+  if (inputEntry.includes('\'')) {
+    item = inputEntry.split(" '");
   } else {
-    item = entry.split(' ');
+    item = inputEntry.split(' ');
   }
   const path = item[0];
   if (item.length === 2) {

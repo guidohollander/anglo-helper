@@ -136,7 +136,8 @@ async function getTag(url, tagNumberinPreviousSolution) {
   let previousArrTagsOrBranchesSorted = [];
   const lsTagsOrBranches = await promises.svnListPromise(`"${sListURL}/${derivedSvnTrunkBranchOrTagPart}"`);
 
-  const bHasPrevious = (Object.prototype.hasOwnProperty.call(lsTagsOrBranches, 'entry'));
+  const bHasPrevious = Array.isArray(lsTagsOrBranches.list.entry);
+  // (Object.prototype.hasOwnProperty.call(lsTagsOrBranches, 'list') ? Object.prototype.hasOwnProperty.call(lsTagsOrBranches.list.entry, 'length') : false);
   let arrTagsOrBranches;
   if (bHasPrevious) {
     // create array, only of numeric tags
