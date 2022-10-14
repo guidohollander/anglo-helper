@@ -132,7 +132,7 @@ async function main() {
           isTagged: decodeURI(tidied.path).toLocaleLowerCase().includes('/tags/'),
           isBranched: decodeURI(tidied.path).toLocaleLowerCase().includes('/branches/'),
           isTrunk: decodeURI(tidied.path).toLocaleLowerCase().includes('/trunk/'),
-          isFrontend: entry.name === 'FRONTEND',
+          isFrontend: tidied.name === 'FRONTEND',
         });
       }
     });

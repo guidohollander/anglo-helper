@@ -9,7 +9,7 @@ const state = require('./state');
 const svn = require('./svn');
 
 async function perform(componentEntry) {
-  const bExternalComponent = (componentEntry.isExternal && componentEntry.isCoreComponent && (componentEntry.isTrunk || clargs.argv.includeTagged));
+  const bExternalComponent = (componentEntry.isExternal && componentEntry.isCoreComponent && (componentEntry.isTrunk || clargs.argv.includeTagged) && !componentEntry.isFrontend);
   const bInternalComponent = (componentEntry.isInternal && clargs.argv.includeInternals);
   let thisComponent;
   if (bExternalComponent || bInternalComponent) {
@@ -33,8 +33,6 @@ async function perform(componentEntry) {
       const logList = await promises.svnLogPromise(`"${state.oSVNInfo.baseURL}${componentEntry.componentBaseFolder}"`, cloneSvnOptions);
       let logListEntries = logList.logentry;
       if (logListEntries && logListEntries.length > 0) {
-        // let bComponentWasChangedSincePreviousTag = true;
-        consoleLog.logThisLine('[T]', 'green');
         // filter the log entries to have only commit messages with JIRA numbers
         // eslint-disable-next-line prefer-regex-literals
         const regExJira = new RegExp('([A-Z][A-Z0-9]+-[0-9]+)', 'g');
@@ -43,7 +41,6 @@ async function perform(componentEntry) {
         let arrComponentJiraCollection = [];
         // keep unique jira projects in separate array
         const arrJiraProjects = [];
-        consoleLog.logNewLine('', 'gray');
         for await (const jiraEntry of logListEntries) {
           // add item only if it is not in the collection already
           const jiraIssueNumber = jiraEntry.msg.match(regExJira).toString().toUpperCase().trim();
@@ -70,105 +67,106 @@ async function perform(componentEntry) {
                   issueSummary = 'could not be retrieved due to error';
                   issueStatus = 'could not be retrieved due to error';
                 }
-                const listUnwantedJiraIssueStates = []; // 'Ready for development', 'In test', 'On hold'
-                if (!listUnwantedJiraIssueStates.includes(theIssue.data.fields.status.name)) {
-                  // add unique jira project to array
-                  const jiraProject = singularJiraIssueNumber.substring(0, singularJiraIssueNumber.indexOf('-'));
-                  if (arrJiraProjects.indexOf(jiraProject) === -1) arrJiraProjects.push(jiraProject);
-                  // add jira issue to object array
-                  arrComponentJiraCollection.push(
-                    {
-                      jiraIssueNumber: singularJiraIssueNumber,
-                      jiraIssueDescription: issueSummary,
-                      issueStatus,
-                      impact: bComponentLevelMajorTagNumberIncrease,
-                      commitMessages: [],
-                    },
-                  );
-
-                  consoleLog.logNewLine('', 'gray');
-                  if (bExternalComponent) {
-                    consoleLog.logThisLine(`add:      ${bExternalComponent ? componentEntry.componentName : 'internal'} / ${singularJiraIssueNumber}`, 'green');
-                  }
-                  if (bInternalComponent) {
-                    consoleLog.logThisLine(`add:      ${state.currentSolution.functionalName} / ${singularJiraIssueNumber}`, 'green');
-                  }
-                  consoleLog.logThisLine(`${bIssueLevelMajorTagNumberIncrease ? ' [major]' : ''}`, 'red');
-                  arrComponentJiraCollection[arrComponentJiraCollection.length - 1].commitMessages.push(commitMessageString);
-                } else {
-                  consoleLog.logNewLine('', 'gray');
-                  consoleLog.logThisLine(`Skip: ${singularJiraIssueNumber}`, 'yellow');
-                  consoleLog.logThisLine(` [${theIssue.data.fields.status.name}]`, 'yellow');
-                }
-              } // else {
-              //  consoleLog.logNewLine('', 'gray');
-              //  consoleLog.logNewLine('Comment contains invalid or unknown JIRA project: ' + singularJiraIssueNumber, 'red');
-              // }
+                // add unique jira project to array
+                const jiraProject = singularJiraIssueNumber.substring(0, singularJiraIssueNumber.indexOf('-'));
+                if (arrJiraProjects.indexOf(jiraProject) === -1) arrJiraProjects.push(jiraProject);
+                // add jira issue to object array
+                arrComponentJiraCollection.push(
+                  {
+                    jiraIssueNumber: singularJiraIssueNumber,
+                    jiraIssueDescription: issueSummary,
+                    issueStatus,
+                    impact: bIssueLevelMajorTagNumberIncrease,
+                    commitMessages: [],
+                  },
+                );
+              }
             } else {
               // add commit msg to appropriate issue issue object
               const indexOfExistingJiraIssue = arrComponentJiraCollection.findIndex((j) => j.jiraIssueNumber === singularJiraIssueNumber);
+              // update impact when it is major
+              if (bComponentLevelMajorTagNumberIncrease) {
+                arrComponentJiraCollection[indexOfExistingJiraIssue].impact = bComponentLevelMajorTagNumberIncrease;
+              }
               if (commitMessageString && arrComponentJiraCollection[indexOfExistingJiraIssue].commitMessages.indexOf(commitMessageString) === -1) {
                 arrComponentJiraCollection[indexOfExistingJiraIssue].commitMessages.push(commitMessageString);
               }
             }
           }
         }
-        let derivedNewTagNumber;
-        if (bExternalComponent) {
-          if (componentEntry.isTrunk) {
-            derivedNewTagNumber = semver.inc(thisComponent.previous.tagNumber, bComponentLevelMajorTagNumberIncrease ? 'minor' : 'patch');
-          } else {
-            derivedNewTagNumber = oTo.oCurrentRevision.tagNumber;
-          }
-        } else
-        if (bInternalComponent) {
-          derivedNewTagNumber = state.oSolution.current.tagNumber;
-        }
-        thisComponent.future.tagNumber = derivedNewTagNumber;
-        const t = thisComponent.future.tagUrl.split('/');
-        t[t.length - 1] = derivedNewTagNumber;
-        thisComponent.future.tagUrl = t.join('/');
-
-        if (state.profile.verbose) {
+        // deferred output, when everhting (particularly the impact) is known
+        if (arrComponentJiraCollection.length > 0) {
+          consoleLog.logThisLine('[T]', 'green');
           consoleLog.logNewLine('', 'gray');
-          // eslint-disable-next-line no-nested-ternary
-          consoleLog.logNewLine(`${componentEntry.isTagged ? 'tag:     ' : componentEntry.isExternal ? 'trunk:   ' : 'internal:'} ${bComponentLevelMajorTagNumberIncrease ? 'Major' : 'Minor'}: ${thisComponent.previous.tagNumber} to ${Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber}, rev:{${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}}, ${arrComponentJiraCollection.length} JIRA issues`, 'green');
-        }
-        // sort jira issue alphabetically
-        arrComponentJiraCollection.sort();
-        const arrComponentJiraCollectionMapped = arrComponentJiraCollection.map((element) => ({
-          component: componentEntry.componentName,
-          ...element,
-        }));
-        arrComponentJiraCollection = arrComponentJiraCollectionMapped;
-        // add unique component to state.arrComponents
-        state.arrComponents.push(componentEntry.componentName);
-        state.arrOverallJiraCollection = state.arrOverallJiraCollection.concat(arrComponentJiraCollection);
-        const tagNumber = Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber;
-        let tagName = '';
-        if (bExternalComponent) {
-          tagName = `${componentEntry.componentName} ${tagNumber}`;
         } else {
-          tagName = `${state.currentSolution.functionalName} ${tagNumber}`;
+          consoleLog.logThisLine('[T]', 'white');
         }
-        state.arrTagReportCollection.push({
-          component: componentEntry.componentName,
-          toBeTagged: thisComponent.toBeTagged,
-          previousTagNumber: thisComponent.previous.tagNumber,
-          previousTagRevisionNumber: thisComponent.previous.tagRevisionNumber,
-          previousTagUrl: thisComponent.previous.tagRevisionNumber,
-          currentTagNumber: thisComponent.current.tagNumber,
-          currentTagRevisionNumber: thisComponent.current.tagRevisionNumber,
-          currentTagUrl: thisComponent.current.tagUrl,
-          tagName,
-          tagNumber,
-          tagBaseUrl: thisComponent.current.tagBaseUrl,
-          tagSourceUrl: thisComponent.current.tagUrl,
-          tagTargetUrl: Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagUrl : thisComponent.current.tagUrl,
-          jiraProjects: arrJiraProjects,
-          numberOfJiraIssues: arrComponentJiraCollection.length,
-          jiraIssues: arrComponentJiraCollection,
-        });
+        for (const outputItem of arrComponentJiraCollection) {
+          consoleLog.logNewLine('', 'gray');
+          if (bExternalComponent) {
+            consoleLog.logThisLine(`add:      ${componentEntry.componentName} / ${outputItem.jiraIssueNumber}`, 'green');
+          }
+          if (bInternalComponent) {
+            consoleLog.logThisLine(`add:      ${state.currentSolution.functionalName} / ${outputItem.jiraIssueNumber}`, 'green');
+          }
+          consoleLog.logThisLine(`${outputItem.impact ? ' [major]' : ''}`, 'red');
+        }
+
+        if (arrComponentJiraCollection.length > 0) {
+          // getTag has already been called, but future version was determined inpredictably because the impact was not known in that stage. Overwrite it here when necessary
+          let derivedNewTagNumber;
+          if (bExternalComponent) {
+            if (componentEntry.isTrunk) {
+              derivedNewTagNumber = semver.inc(thisComponent.previous.tagNumber, bComponentLevelMajorTagNumberIncrease ? 'minor' : 'patch');
+              thisComponent.future.tagNumber = derivedNewTagNumber;
+              const t = thisComponent.future.tagUrl.split('/');
+              t[t.length - 1] = derivedNewTagNumber;
+              thisComponent.future.tagUrl = t.join('/');
+            }
+          }
+
+          // output tag info
+          if (state.profile.verbose) {
+            consoleLog.logNewLine('', 'gray');
+            // eslint-disable-next-line no-nested-ternary
+            consoleLog.logNewLine(`${componentEntry.isTagged ? 'tag:     ' : componentEntry.isExternal ? 'trunk:   ' : 'internal:'} From ${thisComponent.previous.tagNumber} to ${Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber}, rev:{${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}}, ${arrComponentJiraCollection.length} JIRA issues`, 'green');
+          }
+          // sort jira issue alphabetically
+          arrComponentJiraCollection.sort();
+          const arrComponentJiraCollectionMapped = arrComponentJiraCollection.map((element) => ({
+            component: componentEntry.componentName,
+            ...element,
+          }));
+          arrComponentJiraCollection = arrComponentJiraCollectionMapped;
+          // add unique component to state.arrComponents
+          state.arrComponents.push(componentEntry.componentName);
+          state.arrOverallJiraCollection = state.arrOverallJiraCollection.concat(arrComponentJiraCollection);
+          const tagNumber = Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber;
+          let tagName = '';
+          if (bExternalComponent) {
+            tagName = `${componentEntry.componentName} ${tagNumber}`;
+          } else {
+            tagName = `${state.currentSolution.functionalName} ${tagNumber}`;
+          }
+          state.arrTagReportCollection.push({
+            component: componentEntry.componentName,
+            toBeTagged: thisComponent.toBeTagged,
+            previousTagNumber: thisComponent.previous.tagNumber,
+            previousTagRevisionNumber: thisComponent.previous.tagRevisionNumber,
+            previousTagUrl: thisComponent.previous.tagRevisionNumber,
+            currentTagNumber: thisComponent.current.tagNumber,
+            currentTagRevisionNumber: thisComponent.current.tagRevisionNumber,
+            currentTagUrl: thisComponent.current.tagUrl,
+            tagName,
+            tagNumber,
+            tagBaseUrl: thisComponent.current.tagBaseUrl,
+            tagSourceUrl: thisComponent.current.tagUrl,
+            tagTargetUrl: Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagUrl : thisComponent.current.tagUrl,
+            jiraProjects: arrJiraProjects,
+            numberOfJiraIssues: arrComponentJiraCollection.length,
+            jiraIssues: arrComponentJiraCollection,
+          });
+        }
       } else consoleLog.logThisLine('[-]', 'gray'); // no or just 1 logentry (the tag)
     } else consoleLog.logThisLine('[-]', 'gray');
   } else {
