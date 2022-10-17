@@ -80,7 +80,7 @@ async function main() {
     state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
     // fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
     if (clargs.argv.tagReport) {
-      consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.relativeUrl}]`, 'gray');
+      consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.tagRevisionNumber}]`, 'gray');
       state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl
       // fs.writeFileSync('./previous_externals_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
       consoleLog.logNewLine(`determine difference between ${state.oSolution.previous.relativeUrl} and ${state.oSolution.current.relativeUrl} rev:{${state.oSolution.previous.tagRevisionNumber}:${state.oSolution.current.tagRevisionNumber}}`, 'gray');
@@ -298,7 +298,8 @@ async function main() {
             const resultInfo = await promises.svnInfoPromise(dirWithQuotedProjectName, svn.svnOptions);
             entry.svninfo = resultInfo;
             entry.local_project_repo = state.oSVNInfo.baseURL + entry.path;
-            const switchPath = !entry.isFrontend ? state.oSVNInfo.baseURL + entry.path : entry.path;
+            // const switchPath = !entry.isFrontend ? state.oSVNInfo.baseURL + entry.path : entry.path;
+            const switchPath = state.oSVNInfo.baseURL + entry.path;
             entry.match = (switchPath.toLowerCase() === decodeURI(resultInfo.entry.url).toLowerCase());
             // switch if autoswtich enabled local and remote do not match
             if (state.profile.autoSwitch) {

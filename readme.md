@@ -4,18 +4,17 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 
 ## Requirements
 
-* [Node.js](https://nodejs.org/dist/v16.17.0/node-v16.17.0-x64.msi) LTS 16.17.0 (including NPM 8.15.0).
+* [Node.js](https://nodejs.org/dist/v16.17.0/node-v16.17.0-x64.msi) LTS 16.17.0 (including NPM 8.15.0). Make sure that you check the 'Automatically install the necessary tools', such as Python and VSC++/ VS Build tools as well.
 * [NVM](https://4geeks.com/how-to/nvm-install-windows) when multiple versions of node.js version are required, i.e. when using Control panel.
 * [Tortoise SVN](https://tortoisesvn.net/downloads.html) An SVN client for Windows.
 * [Git](https://git-scm.com/)
 
 ## Installation steps
 
-1. Start a terminal (i.e. git bash, windows terminal, powershell console) in a folder where you want to store the Anglo helper program 
-2. Clone the git repo. Execute `git clone https://github.com/guidohollander/anglo-helper` in the terminal. It will create a new folder `anglo-helper`.
-3. Navigate (change directory) into the anglo-helper folder and run `npm install -g`. It will automatically install dependencies for running Anglo helper and make it available 'globally' on your computer. It's now ready to be used.
-4. Navigate (change directory) to one of your **workspace** folders
-5. Run `anglo-helper`. Since it is the first run, a number of questions will be asked in order to create a profile in <workspace>/profile_1.json.
+1. Start an elevated command prompt or any other terminal as administrator (i.e. git bash, windows terminal, powershell console).
+2. Issue the following command `npm install anglo-helper@latest -g`. This will install Anglo helper as global module, which enables you to run it from any (workspace) folder.
+3. Close the elevated command prompt and start a reguler, non-elevated command prompot and navigate (change directory) to one of your **workspace** folders
+5. Run `anglo-helper`. Since it is the first run, a number of questions will be asked in order to create a profile in <workspace>/profile_1.json. If applicable, use the same structure as suggest, for example when specifying the flyway folder: use forward slash, including a trailing slash. You can always edit your profile (<workspace>/profile_1.json) in case something went wrong or something is missing.
 
 ## Command line options (anglo-helper --version)
 
@@ -26,6 +25,10 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 * Run Anglo Helper with the default profile (profile_1.json). At first run, the default profile is created based on a questionaire.
 
     $ `anglo-helper`
+
+* Show all Anglo-helper command line options.
+
+    $ `anglo-helper --help`    
     
 * Change or copy your profile
     
@@ -50,15 +53,11 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
     $ `anglo-helper --flyway --verbose`    
     etc.
     
-* Force anglo-helper to perform actions on a single project only. Can be combined with other arguments
+* Force anglo-helper to perform actions on a subset of projects. Can be combined with other arguments
 
-    $ `anglo-helper --project 'SC Tax return'
+    $ `anglo-helper --component 'Payout'
     
-* Force anglo-helper to start operating starting from a particular row or project name and skip all projects that are alphabetically before that. These options can, but should not be combined since row numbers are relative to the complete set.
 
-    $ `anglo-helper --startRow 10`
-
-    $ `anglo-helper --startProject 'SC Tax return'`
     
 ## License
 

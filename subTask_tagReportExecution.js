@@ -1,6 +1,7 @@
 /* eslint-disable no-restricted-syntax */
 const beep = require('node-beep');
 const clargs = require('./arguments');
+const componentToTrunk = require('./componentToTrunk');
 const consoleLog = require('./consoleLog');
 const jira = require('./jira');
 const state = require('./state');
@@ -11,6 +12,7 @@ async function perform(componentEntry) {
   const bSolutionJiraHandlingEnabled = false;
   const bComponentTaggingEnabled = false;
   const bComponentJiraHandlingEnabled = false;
+  const bComponentSwitchExternalsEnabled = true;
   let jiraIssueCounter;
   // ------------------------------------------------------------------
   // general
@@ -117,6 +119,17 @@ async function perform(componentEntry) {
           if (bComponentTaggingEnabled) {
             try {
               await util.execShellCommand(svnCopyCommand);
+            } catch (error) {
+              consoleLog.logNewLine(`Errors while executing execShellCommand(tag): ${svnCopyCommand}`, 'gray');
+              beep(3);
+            }
+          }
+          if (bComponentSwitchExternalsEnabled) {
+            try {
+              // eslint-disable-next-line no-param-reassign
+              const from = tagReportExecutionComponentData.tagSourceUrl.replace(state.oSVNInfo.baseURL, '/');
+              const to = tagReportExecutionComponentData.tagTargetUrl.replace(state.oSVNInfo.baseURL, '/');
+              await componentToTrunk.perform(componentEntry, from, to);
             } catch (error) {
               consoleLog.logNewLine(`Errors while executing execShellCommand(tag): ${svnCopyCommand}`, 'gray');
               beep(3);

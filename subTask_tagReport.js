@@ -55,7 +55,7 @@ async function perform(componentEntry) {
             // add unique jira issue to object array
             if (arrComponentJiraCollection.findIndex((j) => j.jiraIssueNumber === singularJiraIssueNumber) === -1) {
               commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace('https://jira.bearingpointcaribbean.com/browse/', '').trim();
-              const listAllJiraAngloProjects = ['AIRD', 'AISSB', 'CONVA', 'IRD', 'MTSSSKN', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB'];
+              const listAllJiraAngloProjects = ['AIIRD', 'AISSB', 'CONVA', 'IRD', 'MTSSKN', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB'];
               let theIssue; let issueSummary; let issueStatus;
               if (listAllJiraAngloProjects.includes(singularJiraIssueNumber.split('-')[0])) {
                 try {

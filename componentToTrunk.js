@@ -2,6 +2,7 @@
 const inquirer = require('inquirer');
 const crypto = require('crypto');
 const fs = require('fs');
+// const { array } = require('yargs');
 const util = require('./util');
 const promises = require('./promises');
 const consoleLog = require('./consoleLog');
@@ -36,54 +37,63 @@ async function updateExternal(arrComponents, arrExternals, componentName, search
   };
 }
 
-async function perform(arr) {
-  const oarrQ = arr.filter((e) => e.isExternal && e.isTagged && e.isCoreComponent);
-  const arrQ = Object.values(oarrQ).map((i) => ({ value: { selectedComponent: i, componentCollection: arr }, name: `${i.key} [${i.relativeUrl}]` }));
+// provide 1 or more
+async function replaceAndWrite(answers,from, to) {
+  const svnOptions = { trustServerCert: true };
+  const oExternals = await promises.svnPropGetPromise('svn:externals', state.oSVNInfo.remoteRepo, svnOptions);
+  const externals = oExternals.target.property._.split('\r\n');
+  const oUpdatedExternals = await updateExternal(answers.componentSelector.componentCollection, externals, answers.componentSelector.selectedComponent.key, answers.componentSelector.selectedComponent.relativeUrl, 'trunk');
+  const fMod = `ext_mod_${crypto.randomBytes(8).toString('hex')}`;
+  fs.writeFileSync(fMod, oUpdatedExternals.externals);
+  const svnCommand = `svnmucc propsetf svn:externals ${fMod} ${state.oSVNInfo.remoteRepo} -m "${answers.jiraIssue ? answers.jiraIssue : ''} auto update external ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk"`;
+  await util.execShellCommand(svnCommand);
+  fs.unlinkSync(fMod);
+  return oUpdatedExternals;
+}
 
-  if (!state.oSolution.current.relativeUrl === 'trunk') consoleLog('Warning!! Your repository is not pointing towards the trunk!', 'red');
-  await inquirer
-    .prompt([
-      {
-        type: 'search-list',
-        message: 'Search and select solution component to switch to trunk',
-        name: 'componentSelector',
-        choices: arrQ,
-      },
-      {
-        type: 'boolean',
-        message: (question) => `Are you sure you want to switch '${question.componentSelector.selectedComponent.key}' from ${question.componentSelector.selectedComponent.relativeUrl} to trunk?`,
-        name: 'areyousure',
-        default: true,
-      },
-      {
-        type: 'input',
-        message: 'Optionally specify a JIRA issue. It will be registered in the svn commit and anglo-helper teams messages.',
-        name: 'jiraIssue',
-      },
-    ])
-    .then(async (answers) => {
-      const svnOptions = { trustServerCert: true };
-      let fMod;
-      try {
-        if (answers.areyousure) {
-          const oExternals = await promises.svnPropGetPromise('svn:externals', state.oSVNInfo.remoteRepo, svnOptions);
-          const externals = oExternals.target.property._.split('\r\n');
-          const oUpdatedExternals = await updateExternal(answers.componentSelector.componentCollection, externals, answers.componentSelector.selectedComponent.key, answers.componentSelector.selectedComponent.relativeUrl, 'trunk');
-          fMod = `ext_mod_${crypto.randomBytes(8).toString('hex')}`;
-          fs.writeFileSync(fMod, oUpdatedExternals.externals);
-          const svnCommand = `svnmucc propsetf svn:externals ${fMod} ${state.oSVNInfo.remoteRepo} -m "${answers.jiraIssue ? answers.jiraIssue : ''} auto update external ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk"`;
-          await util.execShellCommand(svnCommand);
-          fs.unlinkSync(fMod);
-          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
-          // eslint-disable-next-line no-restricted-syntax
-          for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
-            await subTaskSwitch.perform(componentEntry);
+async function perform(arr, from, to) {
+  if (Array.isArray(arr)) {
+    const oarrQ = arr.filter((e) => e.isExternal && e.isTagged && e.isCoreComponent);
+    const arrQ = Object.values(oarrQ).map((i) => ({ value: { selectedComponent: i, componentCollection: arr }, name: `${i.key} [${i.relativeUrl}]` }));
+
+    if (!state.oSolution.current.relativeUrl === 'trunk') consoleLog('Warning!! Your repository is not pointing towards the trunk!', 'red');
+    await inquirer
+      .prompt([
+        {
+          type: 'search-list',
+          message: 'Search and select solution component to switch to trunk',
+          name: 'componentSelector',
+          choices: arrQ,
+        },
+        {
+          type: 'boolean',
+          message: (question) => `Are you sure you want to switch '${question.componentSelector.selectedComponent.key}' from ${question.componentSelector.selectedComponent.relativeUrl} to trunk?`,
+          name: 'areyousure',
+          default: true,
+        },
+        {
+          type: 'input',
+          message: 'Optionally specify a JIRA issue. It will be registered in the svn commit and anglo-helper teams messages.',
+          name: 'jiraIssue',
+        },
+      ])
+      .then(async (answers) => {
+        try {
+          if (answers.areyousure) {
+            const oUpdatedExternals = await replaceAndWrite(answers);
+            await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
+            // eslint-disable-next-line no-restricted-syntax
+            for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
+              await subTaskSwitch.perform(componentEntry);
+            }
           }
+        } catch (error) {
+          console.dir(error);
         }
-      } catch (error) {
-        console.dir(error);
-      }
-    });
+      });
+  } else {
+    await replaceAndWrite(arr,from, to);
+  }
 }
 module.exports = {
   perform,
