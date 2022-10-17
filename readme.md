@@ -13,8 +13,8 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 
 1. Start an elevated command prompt or any other terminal as administrator (i.e. git bash, windows terminal, powershell console).
 2. Issue the following command `npm install anglo-helper@latest -g`. This will install Anglo helper as global module, which enables you to run it from any (workspace) folder.
-3. Close the elevated command prompt and start a reguler, non-elevated command prompot and navigate (change directory) to one of your **workspace** folders
-5. Run `anglo-helper`. Since it is the first run, a number of questions will be asked in order to create a profile in <workspace>/profile_1.json. If applicable, use the same structure as suggest, for example when specifying the flyway folder: use forward slash, including a trailing slash. You can always edit your profile (<workspace>/profile_1.json) in case something went wrong or something is missing.
+3. Close the elevated command prompt and start a regular, non-elevated command prompt and navigate (change directory) to one of your **workspace** folders
+5. Run `anglo-helper`. Since it is the first run, a number of questions will be asked in order to create a profile in <workspace>/profile_1.json. If applicable, use the same structure as suggested, for example when specifying the flyway folder: use forward slashes, including a trailing slash. You can always edit your profile (<workspace>/profile_1.json) in case something went wrong or something is missing.
 
 ## Command line options (anglo-helper --version)
 
