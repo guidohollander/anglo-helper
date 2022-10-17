@@ -553,18 +553,25 @@ async function prequal() {
         when: (answers) => answers.flyway,
       },
       {
+        type: 'confirm',
+        name: 'flywayDatabaseIntegratedSecurity',
+        default: true,
+        message: 'Flyway: Use integrated security for database authentication? ',
+        when: (answers) => answers.flyway,
+      },
+      {
         type: 'input',
         name: 'flywayDatabaseUsername',
         default: 'sa',
         message: `Flyway: What database user can ${state.oAppContext.descriptiveName} use to access the database? For example 'sa' `,
-        when: (answers) => answers.flyway,
+        when: (answers) => answers.flyway && !answers.flywayDatabaseIntegratedSecurity,
       },
       {
         type: 'input',
         name: 'flywayDatabasePassword',
         default: '1',
         message: `Flyway: What database password can ${state.oAppContext.descriptiveName} use to access the database? Default: '1' `,
-        when: (answers) => answers.flyway,
+        when: (answers) => answers.flyway && !answers.flywayDatabaseIntegratedSecurity,
       },
       {
         type: 'confirm',

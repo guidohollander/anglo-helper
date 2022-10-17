@@ -38,7 +38,7 @@ async function updateExternal(arrComponents, arrExternals, componentName, search
 }
 
 // provide 1 or more
-async function replaceAndWrite(answers,from, to) {
+async function replaceAndWrite(answers, from, to) {
   const svnOptions = { trustServerCert: true };
   const oExternals = await promises.svnPropGetPromise('svn:externals', state.oSVNInfo.remoteRepo, svnOptions);
   const externals = oExternals.target.property._.split('\r\n');
@@ -92,7 +92,7 @@ async function perform(arr, from, to) {
         }
       });
   } else {
-    await replaceAndWrite(arr,from, to);
+    await replaceAndWrite(arr, from, to);
   }
 }
 module.exports = {
