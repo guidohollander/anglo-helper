@@ -22,12 +22,8 @@ async function perform(componentEntry) {
       flywayTable = JSON.stringify(componentEntry.key);
       flywayLocations = JSON.stringify(`filesystem:${dir}/_CONTINUOUS_DELIVERY/DATABASE_MIGRATIONS/`);
     }
-    const flywayDatabaseConnectionString = `jdbc:sqlserver://${state.profile.flywayDatabaseServer}:${state.profile.flywayDatabaseServerPort};databaseName=${state.profile.flywayDatabaseName};integratedSecurity=${state.profile.flywayDatabaseIntegratedSecurity};`;
-    let credentailsString = '';
-    if (!state.profile.flywayDatabaseIntegratedSecurity) {
-      credentailsString = `-user=${state.profile.flywayDatabaseUsername} -password=${state.profile.flywayDatabasePassword}`;
-    }
-    const flywayCommand = `"${state.profile.flywayPath}flyway" ${flywayAction} -color=always -locations=${flywayLocations} -schemas=${flywayDatabaseSchema} -table=${flywayTable} -url=${flywayDatabaseConnectionString} ${credentailsString}`;
+    const flywayDatabaseConnectionString = `jdbc:sqlserver://${state.profile.flywayDatabaseServer}:${state.profile.flywayDatabaseServerPort};databaseName=${state.profile.flywayDatabaseName};integratedSecurity=false;user=${state.profile.flywayDatabaseUsername};password=${state.profile.flywayDatabasePassword};`;
+    const flywayCommand = `${state.profile.flywayPath}flyway ${flywayAction} -color=always -locations=${flywayLocations} -schemas=${flywayDatabaseSchema} -table=${flywayTable} -url=${flywayDatabaseConnectionString} -user=${state.profile.flywayDatabaseUsername} -password=${state.profile.flywayDatabasePassword}`;
     let flywayResult = await util.execShellCommand(flywayCommand);
     flywayResult = flywayResult.replace(/^Database: .*\(Microsoft SQL Server [\d]+\.[\d]+\)/m, '');
     flywayResult = flywayResult.replace(/^Flyway Community Edition .*/m, '');
