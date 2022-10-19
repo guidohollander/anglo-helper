@@ -379,14 +379,14 @@ async function main() {
       consoleLog.logNewLine(`SVN [S]witch: ${entry}`, 'green');
     }
     if (state.arrSwitchUpdateCollection.length > 0) {
-      consoleLog.logNewLine(`${state.arrSwitchUpdateCollection.length} [S]witched project(s) require a rebuild / validate in Be Informed.`, 'red');
+      consoleLog.logNewLine(`${state.arrSwitchUpdateCollection.length} [S]witched project(s) require a refresh / rebuild / validate in Be Informed.`, 'red');
     }
     // eslint-disable-next-line no-restricted-syntax
     for (const entry of state.arrSVNUpdatedCollection) {
       consoleLog.logNewLine(`SVN [U]pdate: ${entry}`, 'green');
     }
     if (state.arrSVNUpdatedCollection.length > 0) {
-      consoleLog.logNewLine(`${state.arrSVNUpdatedCollection.length} [U]pdated project(s) require a rebuild / validate in Be Informed.`, 'red');
+      consoleLog.logNewLine(`${state.arrSVNUpdatedCollection.length} [U]pdated project(s) require a refresh / rebuild / validate in Be Informed.`, 'red');
     }
     // eslint-disable-next-line no-restricted-syntax
     for (const entry of state.arrFlywayUpdatedCollection) {

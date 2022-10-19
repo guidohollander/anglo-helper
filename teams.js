@@ -15,9 +15,46 @@ async function postMessageToTeams(title, message) {
       },
     ],
   };
+  const c2 = {
+    type: 'message',
+    attachments: [
+      {
+        contentType: 'application/vnd.microsoft.card.adaptive',
+        content: {
+          type: 'AdaptiveCard',
+          body: [
+            {
+              type: 'TextBlock',
+              size: 'Medium',
+              weight: 'Bolder',
+              text: title,
+            },
+            {
+              type: 'TextBlock',
+              text: `<at>Anglo-helper channel</at> ${message}`,
+            },
+          ],
+          $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+          version: '1.0',
+          msteams: {
+            entities: [
+              {
+                type: 'mention',
+                text: '<at>Anglo-helper channel</at>',
+                mentioned: {
+                  id: 'bf4e4915.bearingpointcaribbean.com@amer.teams.ms',
+                  name: 'Anglo-helper channel',
+                },
+
+              },
+            ],
+          },
+        },
+      }],
+  };
 
   try {
-    const response = await axios.post(webhookURL, card, {
+    const response = await axios.post(webhookURL, c2, {
       headers: {
         'content-type': 'application/vnd.microsoft.teams.card.o365connector',
       },
