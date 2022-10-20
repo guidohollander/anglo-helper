@@ -1,5 +1,4 @@
 const fs = require('fs');
-const beep = require('node-beep');
 const clargs = require('./arguments');
 const consoleLog = require('./consoleLog');
 const promises = require('./promises');
@@ -7,7 +6,7 @@ const state = require('./state');
 
 function alertTerminal(mode) {
   if ((mode === 'F') || (mode.includes('U')) || (mode.includes('S')) || (mode === 'C')) {
-    beep(1);
+    // beep(1);
   }
 }
 function determineProbableAngloApp(angloPath) {

@@ -1,5 +1,6 @@
 const clargs = require('./arguments');
 const state = require('./state');
+const util = require('./util');
 
 function mylog(t, c, lf) {
   if ((clargs.argv.workingCopyFolder) && (clargs.argv.workingCopyFolder.lenght > 0)) {
@@ -92,7 +93,7 @@ function showBIRunningWarning(paramBeInformedRunning) {
     }
   }
 }
-function showHeader() {
+async function showHeader() {
   let s;
   const sp = ' ';
   s = 'project folder';
@@ -104,7 +105,17 @@ function showHeader() {
   s = 'profile';
   logNewLine(`${s}:${giveSpace(s, sp)}[${state.profile.filename}: [S]witch]:${state.profile.autoSwitch} | [U]pdate:${state.profile.autoUpdate} | [F]lyway:${state.profile.flyway} | [C]ompare specific:${state.profile.compareSpecific}`, 'cyan');
   s = `${state.oAppContext.descriptiveName.toLowerCase()} version`;
-  logNewLine(`${s}:${giveSpace(s, sp)}${embrace(state.oAppContext.version)}`, 'cyan');
+  // logNewLine(`${s}:${giveSpace(s, sp)}${embrace(state.oAppContext.version)}`, 'cyan');
+
+  const appUpdateInfo = await util.getAppUpdateInfo();
+  logThisLine(`${s}:${giveSpace(s, sp)}${embrace(state.oAppContext.version)}`, 'cyan');
+  if (appUpdateInfo.updateAvailable) {
+    logThisLine(`new version ${appUpdateInfo.remoteVersion} available`, 'red');
+  } else {
+    logThisLine(' @latest', 'green');
+  }
+  logNewLine('', 'gray'); logNewLine('', 'gray');
+
   if ((state.oSVNInfo.repo.includes('branches') || (state.oSVNInfo.repo.includes('tags'))) && state.profile.flyway && !clargs.argv.flyway) {
     state.profile.flyway = false;
     logNewLine('', 'white');

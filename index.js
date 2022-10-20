@@ -73,7 +73,7 @@ async function main() {
     state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionFrom);
     // };
     let arrAll = [];
-    consoleLog.showHeader();
+    await consoleLog.showHeader();
     // get externals
     consoleLog.logNewLine('', 'gray');
     consoleLog.logNewLine(`getting externals from current solution ${state.oSolution.current.relativeUrl} [rev:${state.oSolution.current.tagRevisionNumber}]`, 'gray');
@@ -614,7 +614,7 @@ async function prequal() {
         } else {
           // eslint-disable-next-line no-console
           console.log('Unable to access database');
-          beep(2);
+          beep(3);
           process.exit();
         }
       })
