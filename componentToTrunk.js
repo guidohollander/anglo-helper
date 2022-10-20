@@ -46,7 +46,7 @@ async function replaceAndWrite(answers, from, to) {
   const fMod = `ext_mod_${crypto.randomBytes(8).toString('hex')}`;
   fs.writeFileSync(fMod, oUpdatedExternals.externals);
   const svnCommand = `svnmucc propsetf svn:externals ${fMod} ${state.oSVNInfo.remoteRepo} -m "${answers.jiraIssue ? answers.jiraIssue : ''} auto update external ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk"`;
-  // await util.execShellCommand(svnCommand);
+    await util.execShellCommand(svnCommand);
   fs.unlinkSync(fMod);
   return oUpdatedExternals;
 }
