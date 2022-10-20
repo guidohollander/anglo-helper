@@ -23,7 +23,7 @@ const subTaskUpdate = require('./subTask_update');
 const svn = require('./svn');
 const arrSolutions = require('./solutions.json');
 const pjson = require('./package.json');
-const componentToTrunk = require('./componentToTrunk');
+const componentToTrunk = require('./subTask_componentToTrunk');
 const util = require('./util');
 
 // app context
