@@ -28,7 +28,7 @@ async function updateExternal(arrComponents, arrExternals, componentName, search
     arrExternals[iExternal] = arrExternals[iExternal].replaceAll(searchVal, replaceVal);
     console.log(`Updated from ${oldString} to ${arrExternals[iExternal]}`);
     // match updated external from file with component, so we know which one to switch
-    const matchingComponentEntry = arrComponents.find((component) => decodeURI(oldString.split(' ')[0]) === component.path);
+    const matchingComponentEntry = arrComponents.find((component) => decodeURI(oldString.split(' ')[0].toLowerCase()) === component.path.toLowerCase());
     arrUpdatedComponentEntries.push(matchingComponentEntry);
   }
   return {
@@ -46,7 +46,7 @@ async function replaceAndWrite(answers, from, to) {
   const fMod = `ext_mod_${crypto.randomBytes(8).toString('hex')}`;
   fs.writeFileSync(fMod, oUpdatedExternals.externals);
   const svnCommand = `svnmucc propsetf svn:externals ${fMod} ${state.oSVNInfo.remoteRepo} -m "${answers.jiraIssue ? answers.jiraIssue : ''} auto update external ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk"`;
-  await util.execShellCommand(svnCommand);
+  // await util.execShellCommand(svnCommand);
   fs.unlinkSync(fMod);
   return oUpdatedExternals;
 }
