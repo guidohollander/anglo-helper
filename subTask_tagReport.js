@@ -150,6 +150,7 @@ async function perform(componentEntry) {
           }
           state.arrTagReportCollection.push({
             component: componentEntry.componentName,
+            bareComponentName: componentEntry.bareComponentName,
             toBeTagged: thisComponent.toBeTagged,
             previousTagNumber: thisComponent.previous.tagNumber,
             previousTagRevisionNumber: thisComponent.previous.tagRevisionNumber,

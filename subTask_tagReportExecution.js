@@ -12,7 +12,6 @@ async function perform(componentEntry) {
   const bSolutionJiraHandlingEnabled = false;
   const bComponentTaggingEnabled = false;
   const bComponentJiraHandlingEnabled = false;
-  const bComponentSwitchExternalsEnabled = true;
   let jiraIssueCounter;
   // ------------------------------------------------------------------
   // general
@@ -124,17 +123,17 @@ async function perform(componentEntry) {
               beep(3);
             }
           }
-          if (bComponentSwitchExternalsEnabled) {
-            try {
-              // eslint-disable-next-line no-param-reassign
-              const from = tagReportExecutionComponentData.tagSourceUrl.replace(state.oSVNInfo.baseURL, '/');
-              const to = tagReportExecutionComponentData.tagTargetUrl.replace(state.oSVNInfo.baseURL, '/');
-              await componentToTrunk.perform(componentEntry, from, to);
-            } catch (error) {
-              consoleLog.logNewLine(`Errors while executing execShellCommand(tag): ${svnCopyCommand}`, 'gray');
-              beep(3);
-            }
-          }
+          // if (bComponentSwitchExternalsEnabled) {
+          //   try {
+          //     // eslint-disable-next-line no-param-reassign
+          //     const from = tagReportExecutionComponentData.tagSourceUrl.replace(state.oSVNInfo.baseURL, '/');
+          //     const to = tagReportExecutionComponentData.tagTargetUrl.replace(state.oSVNInfo.baseURL, '/');
+          //     await componentToTrunk.perform(componentEntry, from, to);
+          //   } catch (error) {
+          //     consoleLog.logNewLine(`Errors while executing execShellCommand(tag): ${svnCopyCommand}`, 'gray');
+          //     beep(3);
+          //   }
+          // }
         } else {
           consoleLog.logNewLine(`Skipping ${componentEntry.componentName}, since tag ${tagReportExecutionComponentData.tagNumber} already exists`, 'red');
         }
@@ -184,6 +183,26 @@ async function perform(componentEntry) {
     }
   } // else tagreportexecutionmode
 }
+
+async function batchUpdateExternals() {
+  // create an array based on the components in the tagreport and use it as argument for replaceAndWriteExternals
+  const argreplaceAndWriteExternals = [];
+  try {
+    state.tagReportArray[0].componentCollection.forEach((entry) => {
+      const component = entry.bareComponentName;
+      const from = entry.currentTagNumber;
+      const to = entry.tagNumber;
+      argreplaceAndWriteExternals.push({ component, from, to });
+    });
+    await componentToTrunk.replaceAndWriteExternals(argreplaceAndWriteExternals);
+    // eslint-disable-next-line no-param-reassign
+  } catch (error) {
+    consoleLog.logNewLine('Errors while executing batchUpdateExternals');
+    beep(3);
+  }
+}
+
 module.exports = {
   perform,
+  batchUpdateExternals,
 };

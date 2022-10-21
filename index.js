@@ -36,7 +36,9 @@ state.app = state.oAppContext.app;
 state.workingCopyFolder = anglo.getWorkingCopyFolder(state.oAppContext);
 function getComponentName(componentBaseFolder) {
   const p1 = componentBaseFolder.split('/');
-  return (p1[p1.length - 2].replaceAll('_', ' ').includes('SolutionDevelopment') ? 'SC ' : 'DSC ') + p1[p1.length - 1].replaceAll('_', ' ').replace('Compliance', 'Compliancy').replace('SC Reallocate Payment', 'SC Payment reallocation');
+  const fullComponentName = (p1[p1.length - 2].replaceAll('_', ' ').includes('SolutionDevelopment') ? 'SC ' : 'DSC ') + p1[p1.length - 1].replaceAll('_', ' ').replace('Compliance', 'Compliancy').replace('SC Reallocate Payment', 'SC Payment reallocation');
+  const bareComponentName = p1[p1.length - 1];
+  return { fullComponentName, bareComponentName };
 }
 async function main() {
   try {
@@ -117,11 +119,13 @@ async function main() {
       // for componentBaseFolder. If domain-specific, keep first 3, else keep first 4 parts
       const partsToKeep = (tidied.name.toLowerCase().startsWith('dsc')) ? 4 : 5;
       if (tidied.name !== '') {
+        const component = getComponentName(decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'));
         arrExternals.push({
           key: tidied.name,
           path: decodeURI(tidied.path),
           componentBaseFolder: decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
-          componentName: getComponentName(decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')),
+          componentName: component.fullComponentName,
+          bareComponentName: component.bareComponentName,
           relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/'),
           isExternal: true,
           isCoreComponent: !tidied.name.toLowerCase().includes('interface def'),
@@ -156,6 +160,7 @@ async function main() {
         isDomainSpecific: entry.name.toLowerCase().startsWith('dsc'),
         isSolutionComponent: entry.name.toLowerCase().startsWith('sc'),
         componentName: entry.name,
+        bareComponentName: entry.name,
         isTagged: decodeURI(entry.path).toLocaleLowerCase().includes('/tags/'),
         isBranched: decodeURI(entry.path).toLocaleLowerCase().includes('/branches/'),
         isTrunk: decodeURI(entry.path).toLocaleLowerCase().includes('/trunk/'),
@@ -359,6 +364,10 @@ async function main() {
       }
     } else if (clargs.argv.componentToTrunk) {
       await componentToTrunk.perform(arrAll);
+    }
+    if (clargs.argv.tagReportExecution) {
+      // to update all externals to the newly created tags
+      await subTaskTagReportExecution.batchUpdateExternals();
     }
     const SummaryCount = (state.arrMissingCollection.length + state.arrSwitchUpdateCollection.length + state.arrSVNUpdatedCollection.length + state.arrFlywayUpdatedCollection.length + state.arrCompareSpecificUpdateCollection.length + state.arrSVNPotentialUpdateCollection.length + state.arrDeploymentCheckCollection.length + state.arrTagReportCollection.length);
     if (SummaryCount > 0) {
