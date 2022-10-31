@@ -9,6 +9,7 @@ const consoleLog = require('./consoleLog');
 const state = require('./state');
 const teams = require('./teams');
 const subTaskSwitch = require('./subTask_switch');
+const clargs = require('./arguments');
 
 const svnOptions = { trustServerCert: true };
 
@@ -64,15 +65,20 @@ async function replaceAndWriteExternalsComponentToTrunk(answers) {
 
 async function replaceAndWriteExternals(arrChanges) {
   const oExternals = await promises.svnPropGetPromise('svn:externals', state.oSVNInfo.remoteRepo, svnOptions);
-  let externalsFileContent = oExternals.target.property._ // .replaceAll(/(?:\\[rn]|[\r\n]+)+/g, '\n');
+  let externalsFileContent = oExternals.target.property._; // .replaceAll(/(?:\\[rn]|[\r\n]+)+/g, '\n');
   fs.writeFileSync('./externals_before.json', externalsFileContent);
+  consoleLog.logNewLine('', 'white');
+  consoleLog.logNewLine('updating externals', 'white');
   arrChanges.forEach((item) => {
     const from = `/${item.component}/${item.from}`;
     const to = `/${item.component}/${item.to}`;
     const regExFindReplace = new RegExp(from, 'gi');
     externalsFileContent = externalsFileContent.replaceAll(regExFindReplace, to);
+    consoleLog.logNewLine(`${from} => ${to}`, 'white');
   });
-  await writeExternals(externalsFileContent);
+  if (!clargs.argv.dryRun) {
+    await writeExternals(externalsFileContent);
+  }
 }
 
 async function perform(arr) {
@@ -104,10 +110,10 @@ async function perform(arr) {
       try {
         if (answers.areyousure) {
           const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers);
-          // await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
+          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
-            // await subTaskSwitch.perform(componentEntry);
+            await subTaskSwitch.perform(componentEntry);
           }
         }
       } catch (error) {

@@ -6,3 +6,4 @@ node_modules/
 /tag*.json
 /*.xlsx
 roadmap.txt
+fw.bat

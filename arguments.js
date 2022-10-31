@@ -61,6 +61,11 @@ module.exports = {
       choices: ['component', 'solution'],
       default: 'component',
     })
+    .option('dryRun', {
+      description: 'tagReportExecutionMode in dryRun (output only) mode',
+      default: true,
+      type: 'boolean',
+    })
     .option('forceSVN', {
       description: "[S]witch and [U] despite 'Be Informed running' warning",
       type: 'boolean',
@@ -96,6 +101,10 @@ module.exports = {
       description: 'update potential updates from the last run .',
       type: 'boolean',
     })
+    .option('generateFlywaywBatch', {
+      description: 'for every core component, generate an .anglo-helper folder with a af_fw.bat file.',
+      type: 'boolean',
+    })    
     .option('component', {
       description: "limit the set of components to (partly) match the specified string (case insensitive), i.e. --component '_CONTINUOUS_DELIVERY' or --component 'assessment'.",
       type: 'string',

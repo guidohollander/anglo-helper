@@ -141,28 +141,28 @@ async function perform(componentEntry) {
           // add unique component to state.arrComponents
           state.arrComponents.push(componentEntry.componentName);
           state.arrOverallJiraCollection = state.arrOverallJiraCollection.concat(arrComponentJiraCollection);
-          const tagNumber = Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber;
-          let tagName = '';
+          const componentTagNumber = Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber;
+          let componentTagName = '';
           if (bExternalComponent) {
-            tagName = `${componentEntry.componentName} ${tagNumber}`;
+            componentTagName = `${componentEntry.componentName} ${componentTagNumber}`;
           } else {
-            tagName = `${state.currentSolution.functionalName} ${tagNumber}`;
+            componentTagName = `${state.currentSolution.functionalName} ${componentTagNumber}`;
           }
           state.arrTagReportCollection.push({
             component: componentEntry.componentName,
             bareComponentName: componentEntry.bareComponentName,
             toBeTagged: thisComponent.toBeTagged,
-            previousTagNumber: thisComponent.previous.tagNumber,
-            previousTagRevisionNumber: thisComponent.previous.tagRevisionNumber,
-            previousTagUrl: thisComponent.previous.tagRevisionNumber,
-            currentTagNumber: thisComponent.current.tagNumber,
-            currentTagRevisionNumber: thisComponent.current.tagRevisionNumber,
-            currentTagUrl: thisComponent.current.tagUrl,
-            tagName,
-            tagNumber,
-            tagBaseUrl: thisComponent.current.tagBaseUrl,
-            tagSourceUrl: thisComponent.current.tagUrl,
-            tagTargetUrl: Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagUrl : thisComponent.current.tagUrl,
+            previousComponentTagNumber: thisComponent.previous.tagNumber,
+            previousComponentTagRevisionNumber: thisComponent.previous.tagRevisionNumber,
+            previousComponentTagUrl: thisComponent.previous.tagRevisionNumber,
+            currentComponentTagNumber: thisComponent.current.tagNumber,
+            currentComponentTagRevisionNumber: thisComponent.current.tagRevisionNumber,
+            currentComponentTagUrl: thisComponent.current.tagUrl,
+            componentTagName,
+            componentTagNumber,
+            componentTagBaseUrl: thisComponent.current.tagBaseUrl,
+            componentTagSourceUrl: thisComponent.current.tagUrl,
+            componentTagTargetUrl: Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagUrl : thisComponent.current.tagUrl,
             jiraProjects: arrJiraProjects,
             numberOfJiraIssues: arrComponentJiraCollection.length,
             jiraIssues: arrComponentJiraCollection,

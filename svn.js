@@ -136,6 +136,7 @@ async function getTag(url, tagNumberinPreviousSolution) {
   let previousArrTagsOrBranchesSorted = [];
   const lsTagsOrBranches = await promises.svnListPromise(`"${sListURL}/${derivedSvnTrunkBranchOrTagPart}"`);
 
+  // bHasPrevious: consider solutions/components without previous tags or branches
   const bHasPrevious = Array.isArray(lsTagsOrBranches.list.entry);
   // (Object.prototype.hasOwnProperty.call(lsTagsOrBranches, 'list') ? Object.prototype.hasOwnProperty.call(lsTagsOrBranches.list.entry, 'length') : false);
   let arrTagsOrBranches;
@@ -155,32 +156,50 @@ async function getTag(url, tagNumberinPreviousSolution) {
   arrTagsOrBranchesSorted.unshift('trunk');
   const indexCurrent = arrTagsOrBranchesSorted.findIndex((i) => i === derivedSvnTrunkBranchOrTagNumberPart);
   currentArrTagsOrBranchesSorted = arrTagsOrBranchesSorted[indexCurrent];
-  if (tagNumberinPreviousSolution && tagNumberinPreviousSolution !== '') {
-    previousArrTagsOrBranchesSorted = arrTagsOrBranchesSorted.find((e) => e === tagNumberinPreviousSolution);
-  } else {
-    previousArrTagsOrBranchesSorted = bSolutionOrComponentOnTrunk ? arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1] : arrTagsOrBranchesSorted[indexCurrent - 1];
-  }
-  const currentResultInfo = await promises.svnInfoPromise(`"${url}"`);
-  const currentRevisionNumber = currentResultInfo.entry.commit.$.revision;
-  const currentTagNumber = bSolutionOrComponentOnTrunk ? 'trunk' : arrTagsOrBranches.find((i) => i.name === arrTagsOrBranchesSorted[indexCurrent]).name;
-  const currentRelativeUrl = currentResultInfo.entry['relative-url'].replaceAll('^/', '');
-  const currentTagUrl = url;
-  const currentTagBaseUrl = sListURL;
-  let previous;
+
+  let componentPrevious;
+  let solutionPrevious;
   let previousTagNumber;
   let previousTagUrl;
   let previousTagBaseUrl;
 
+  let previousUrl; let previousResultInfo; let previousRevisionNumber; let
+    previousRelativeUrl;
+
+  // previous component and component in previous solution
+  if (tagNumberinPreviousSolution && tagNumberinPreviousSolution !== '') {
+    previousArrTagsOrBranchesSorted = arrTagsOrBranchesSorted.find((e) => e === tagNumberinPreviousSolution);
+    if (bHasPrevious) {
+      previousUrl = url.replace(currentArrTagsOrBranchesSorted, bSolutionOrComponentOnTrunk ? `${derivedSvnTrunkBranchOrTagPart}/` : '') + previousArrTagsOrBranchesSorted;
+      previousResultInfo = await promises.svnInfoPromise(`"${previousUrl}"`);
+      previousRevisionNumber = previousResultInfo.entry.commit.$.revision;
+      previousTagNumber = previousArrTagsOrBranchesSorted;
+      previousRelativeUrl = previousResultInfo.entry['relative-url'].replaceAll('^/', '');
+      previousTagUrl = previousUrl;
+      previousTagBaseUrl = sListURL;
+
+      solutionPrevious = {
+        tagNumber: previousTagNumber,
+        relativeUrl: previousRelativeUrl,
+        tagRevisionNumber: previousRevisionNumber,
+        tagUrl: previousTagUrl,
+        tagBaseUrl: previousTagBaseUrl,
+      };
+    }
+  }
+
+  previousArrTagsOrBranchesSorted = bSolutionOrComponentOnTrunk ? arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1] : arrTagsOrBranchesSorted[indexCurrent - 1];
+
   if (bHasPrevious) {
-    const previousUrl = url.replace(currentArrTagsOrBranchesSorted, bSolutionOrComponentOnTrunk ? `${derivedSvnTrunkBranchOrTagPart}/` : '') + previousArrTagsOrBranchesSorted;
-    const previousResultInfo = await promises.svnInfoPromise(`"${previousUrl}"`);
-    const previousRevisionNumber = previousResultInfo.entry.commit.$.revision;
+    previousUrl = url.replace(currentArrTagsOrBranchesSorted, bSolutionOrComponentOnTrunk ? `${derivedSvnTrunkBranchOrTagPart}/` : '') + previousArrTagsOrBranchesSorted;
+    previousResultInfo = await promises.svnInfoPromise(`"${previousUrl}"`);
+    previousRevisionNumber = previousResultInfo.entry.commit.$.revision;
     previousTagNumber = previousArrTagsOrBranchesSorted;
-    const previousRelativeUrl = previousResultInfo.entry['relative-url'].replaceAll('^/', '');
+    previousRelativeUrl = previousResultInfo.entry['relative-url'].replaceAll('^/', '');
     previousTagUrl = previousUrl;
     previousTagBaseUrl = sListURL;
 
-    previous = {
+    componentPrevious = {
       tagNumber: previousTagNumber,
       relativeUrl: previousRelativeUrl,
       tagRevisionNumber: previousRevisionNumber,
@@ -188,6 +207,13 @@ async function getTag(url, tagNumberinPreviousSolution) {
       tagBaseUrl: previousTagBaseUrl,
     };
   }
+
+  const currentResultInfo = await promises.svnInfoPromise(`"${url}"`);
+  const currentRevisionNumber = currentResultInfo.entry.commit.$.revision;
+  const currentTagNumber = bSolutionOrComponentOnTrunk ? 'trunk' : arrTagsOrBranches.find((i) => i.name === arrTagsOrBranchesSorted[indexCurrent]).name;
+  const currentRelativeUrl = currentResultInfo.entry['relative-url'].replaceAll('^/', '');
+  const currentTagUrl = url;
+  const currentTagBaseUrl = sListURL;
 
   const oReturnObject = {
     current: {
@@ -197,7 +223,8 @@ async function getTag(url, tagNumberinPreviousSolution) {
       tagUrl: currentTagUrl,
       tagBaseUrl: currentTagBaseUrl,
     },
-    previous,
+    solutionPrevious,
+    previous: componentPrevious,
   };
   let future = {};
   oReturnObject.toBeTagged = false;
@@ -207,7 +234,8 @@ async function getTag(url, tagNumberinPreviousSolution) {
 
   if (bSolutionOrComponentOnTrunk) {
     if (bHasPrevious) {
-      futureTagNumber = semver.inc(arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1], 'minor');
+      // the replace is to check it numeric except for period char, so 1.11.2_new becomes 1.11.2
+      futureTagNumber = semver.inc(arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1].replace(/[^0-9.]/g, ''), 'minor');
       futureTagUrl = previousTagUrl.replace(previousTagNumber, futureTagNumber);
     } else {
       futureTagNumber = '1.0';

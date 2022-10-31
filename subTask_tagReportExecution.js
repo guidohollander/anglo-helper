@@ -8,10 +8,10 @@ const state = require('./state');
 const util = require('./state');
 
 async function perform(componentEntry) {
-  const bSolutionTaggingEnabled = false;
-  const bSolutionJiraHandlingEnabled = false;
-  const bComponentTaggingEnabled = false;
-  const bComponentJiraHandlingEnabled = false;
+  const bSolutionTaggingEnabled = !clargs.argv.dryRun;
+  const bSolutionJiraHandlingEnabled = !clargs.argv.dryRun;
+  const bComponentTaggingEnabled = !clargs.argv.dryRun;
+  const bComponentJiraHandlingEnabled = !clargs.argv.dryRun;
   let jiraIssueCounter;
   // ------------------------------------------------------------------
   // general

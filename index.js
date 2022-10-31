@@ -19,6 +19,7 @@ const subTaskFlyway = require('./subTask_flyway');
 const subTaskSwitch = require('./subTask_switch');
 const subTaskTagReport = require('./subTask_tagReport');
 const subTaskTagReportExecution = require('./subTask_tagReportExecution');
+const subTaskGenerateFlywaywBatch = require('./subTask_generateFlywaywBatch');
 const subTaskUpdate = require('./subTask_update');
 const svn = require('./svn');
 const arrSolutions = require('./solutions.json');
@@ -50,7 +51,14 @@ async function main() {
     // handle command line switch to state.profile overrides
     if (clargs.argv.switch) state.profile.autoSwitch = clargs.argv.switch;
     if (clargs.argv.update) state.profile.autoUpdate = clargs.argv.update;
-    if (clargs.argv.flyway && state.profile.flywayPath) state.profile.flyway = clargs.argv.flyway;
+    if (clargs.argv.flyway && state.profile.flywayPath) {
+      // toggle other profile items off when explicitly setting flyway switch
+      state.profile.flyway = clargs.argv.flyway;
+      state.profile.autoSwitch = false;
+      state.profile.autoUpdate = false;
+      state.profile.compareSpecific = false;
+      state.profile.flyway = clargs.argv.flyway;
+    }
     if (clargs.argv.flywayValidateOnly) state.profile.verbose = clargs.argv.flywayValidateOnly;
     if (clargs.argv.compare && state.profile.compareSpecificRootFolder) {
       state.profile.compareSpecific = clargs.argv.compare;
@@ -345,6 +353,9 @@ async function main() {
             if (clargs.argv.tagReportExecution) {
               await subTaskTagReportExecution.perform(entry);
             } // tagReport exectuion not enabled
+            if (clargs.argv.generateFlywaywBatch) {
+              await subTaskGenerateFlywaywBatch.perform(entry);
+            } // generateFlywaywBatch not enabled
           } else if (!clargs.argv.tagReport && !clargs.argv.tagReportExecution) {
             anglo.memorable('[M]', state.arrMissingCollection, entry, state.oSVNInfo.baseURL + entry.path.replace(/^\//, '').key, 'green');
             dir = state.workingCopyFolder + entry.key;
@@ -371,6 +382,7 @@ async function main() {
     }
     const SummaryCount = (state.arrMissingCollection.length + state.arrSwitchUpdateCollection.length + state.arrSVNUpdatedCollection.length + state.arrFlywayUpdatedCollection.length + state.arrCompareSpecificUpdateCollection.length + state.arrSVNPotentialUpdateCollection.length + state.arrDeploymentCheckCollection.length + state.arrTagReportCollection.length);
     if (SummaryCount > 0) {
+      state.exitCode = 1;
       consoleLog.logNewLine('', 'gray');
       // eslint-disable-next-line no-console
       console.log('Summary:', SummaryCount.toString().trim(), `(potential) updates for ${state.app}`);
@@ -409,9 +421,10 @@ async function main() {
     const keepUpFilename = `${state.workingCopyFolder}keepup.json`;
     if (state.arrSVNPotentialUpdateCollection.length > 0) {
       fs.writeFileSync(keepUpFilename, JSON.stringify(state.arrSVNPotentialUpdateCollection, null, 2));
-      if (state.profile.autoUpdate && fs.existsSync(keepUpFilename)) {
-        fs.unlinkSync(keepUpFilename);
-      }
+    }
+    if (state.profile.autoUpdate && !state.beInformedRunning && fs.existsSync(keepUpFilename && state.arrSVNPotentialUpdateCollection.length === 0)) {
+      // remove keepup file in next regular updates
+      fs.unlinkSync(keepUpFilename);
     }
     if (state.arrCompareSpecificUpdateCollection.length > 0) {
       consoleLog.logNewLine(`${state.arrCompareSpecificUpdateCollection.length} project for which the [C]ompare specific check failed. Manually investigate the inconsistencies.`, 'red');
@@ -427,15 +440,15 @@ async function main() {
       state.arrTagReportSolutionCollection.push({
         solution: state.currentSolution.name,
         toBeTagged: state.oSolution.toBeTagged,
-        previousTagNumber: state.oSolution.previous.tagNumber,
-        previousTagRevisionNumber: state.oSolution.previous.tagRevisionNumber,
-        currentTagNumber: state.oSolution.current.tagNumber,
-        currentTagRevisionNumber: state.oSolution.current.tagRevisionNumber,
-        tagName: Object.prototype.hasOwnProperty.call(state.oSolution, 'future') ? `${state.currentSolution.functionalName} ${state.oSolution.future.tagNumber}` : `${state.currentSolution.functionalName} ${state.oSolution.current.tagNumber}`,
-        tagNumber: Object.prototype.hasOwnProperty.call(state.oSolution, 'future') ? state.oSolution.future.tagNumber : state.oSolution.current.tagNumber,
-        tagBaseUrl: state.oSolution.current.tagBaseUrl,
-        tagSourceUrl: state.oSolution.current.tagUrl,
-        tagTargetUrl: Object.prototype.hasOwnProperty.call(state.oSolution, 'future') ? state.oSolution.future.tagUrl : state.oSolution.current.tagNumber,
+        previousSolutionTagNumber: state.oSolution.previous.tagNumber,
+        previousSolutionTagRevisionNumber: state.oSolution.previous.tagRevisionNumber,
+        currentSolutionTagNumber: state.oSolution.current.tagNumber,
+        currentSolutionTagRevisionNumber: state.oSolution.current.tagRevisionNumber,
+        solutionTagName: Object.prototype.hasOwnProperty.call(state.oSolution, 'future') ? `${state.currentSolution.functionalName} ${state.oSolution.future.tagNumber}` : `${state.currentSolution.functionalName} ${state.oSolution.current.tagNumber}`,
+        solutionTagNumber: Object.prototype.hasOwnProperty.call(state.oSolution, 'future') ? state.oSolution.future.tagNumber : state.oSolution.current.tagNumber,
+        solutionTagBaseUrl: state.oSolution.current.tagBaseUrl,
+        solutionTagSourceUrl: state.oSolution.current.tagUrl,
+        solutionTagTargetUrl: Object.prototype.hasOwnProperty.call(state.oSolution, 'future') ? state.oSolution.future.tagUrl : state.oSolution.current.tagNumber,
         numberOfComponents: state.arrTagReportCollection.length,
         numberOfJiraIssues: issueCount,
         componentCollection: state.arrTagReportCollection,
@@ -474,7 +487,8 @@ async function main() {
     beep(3);
   }
   process.stdout.write('\n');
-  process.exit(0);
+
+  process.exit(state.exitCode);
 }
 async function prequal() {
   let sequenceNumber = await anglo.getProfileSequenceNumber();
@@ -624,7 +638,7 @@ async function prequal() {
           // eslint-disable-next-line no-console
           console.log('Unable to access database');
           beep(3);
-          process.exit();
+          process.exit(state.exitCode);
         }
       })
       .catch((error) => {
@@ -693,7 +707,7 @@ async function prequal() {
   if ((clargs.argv.tagReport) && (!state.profile.jiraUsername || !state.profile.jiraUsername)) {
     // eslint-disable-next-line no-console
     console.log('Specify jiraUsername / jiraUsername in active profile or as command line argument');
-    process.exit();
+    process.exit(state.exitCode);
   }
 }
 clear();
