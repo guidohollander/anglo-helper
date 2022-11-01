@@ -45,7 +45,7 @@ const jiraGet = async (username, password, url) => {
     return resp;
   } catch (err) {
     // console.error(err);
-    consoleLog.logNewLine(`Error getting data for ${url}`, 'gray');
+    // consoleLog.logNewLine(`Error getting data for ${url}`, 'gray');
   }
   return -1;
 };

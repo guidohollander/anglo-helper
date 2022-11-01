@@ -66,10 +66,10 @@ async function perform(componentEntry) {
     let jiraProjectCounter = 1;
     for await (const jiraProject of arrUniqueJiraProjects) {
       // create fix version in each distinct project, if it not exists already
-      consoleLog.logNewLine(`[${jiraProjectCounter}/${arrUniqueJiraProjects.length}] adding fix version '${tagReportExecutionSolutionData.tagName}' to project '${jiraProject}'`, 'green');
+      consoleLog.logNewLine(`[${jiraProjectCounter}/${arrUniqueJiraProjects.length}] adding fix version '${tagReportExecutionSolutionData.solutionTagName}' to project '${jiraProject}'`, 'green');
       if (bSolutionJiraHandlingEnabled) {
         try {
-          await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionSolutionData.tagName, false);
+          await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionSolutionData.solutionTagName, false);
         } catch (error) {
           consoleLog.logNewLine(`Errors while executing addVersionIfNotExists: ${jiraProject} ${tagReportExecutionSolutionData.tagName}`, 'gray');
           beep(3);
@@ -80,22 +80,23 @@ async function perform(componentEntry) {
     // run only once for the whole solution
     state.bDone = true;
     consoleLog.logNewLine('', 'gray');
-  }
-  // for each issue in the solution, both internal and external components get the solution tag name
-  jiraIssueCounter = 1;
-  for await (const jiraIssue of tagReportExecutionComponentData.jiraIssues) {
-    // create fix version in each issue
-    consoleLog.logNewLine(`[${jiraIssueCounter}/${tagReportExecutionComponentData.jiraIssues.length}] adding fix version '${tagReportExecutionSolutionData.tagName}' to jira issue '${jiraIssue.jiraIssueNumber}'`, 'green');
-    // perform on sample project
-    if (bSolutionJiraHandlingEnabled) {
-      try {
-        await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionSolutionData.tagName);
-      } catch (error) {
-        consoleLog.logNewLine(`Errors while executing updateJiraIssueFixVersion: ${jiraIssue.jiraIssueNumber} ${tagReportExecutionSolutionData.tagName}`, 'gray');
-        beep(3);
+  
+    // for each issue in the solution, both internal and external components get the solution tag name
+    jiraIssueCounter = 1;
+    for await (const jiraIssue of tagReportExecutionComponentData.jiraIssues) {
+      // create fix version in each issue
+      consoleLog.logNewLine(`[${jiraIssueCounter}/${tagReportExecutionComponentData.jiraIssues.length}] adding fix version '${tagReportExecutionSolutionData.solutionTagName}' to jira issue '${jiraIssue.jiraIssueNumber}'`, 'green');
+      // perform on sample project
+      if (bSolutionJiraHandlingEnabled) {
+        try {
+          await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionSolutionData.solutionTagName);
+        } catch (error) {
+          consoleLog.logNewLine(`Errors while executing updateJiraIssueFixVersion: ${jiraIssue.jiraIssueNumber} ${tagReportExecutionSolutionData.solutionTagName}`, 'gray');
+          beep(3);
+        }
       }
+      jiraIssueCounter += 1;
     }
-    jiraIssueCounter += 1;
   }
   // ------------------------------------------------------------------
   // solution component - tagging
@@ -106,14 +107,16 @@ async function perform(componentEntry) {
         // if tag not exists
         let tagExist;
         try {
-          const resultInfo = await jira.jiraGet(state.profile.svnOptionsUsername, state.profile.svnOptionsPassword, `${tagReportExecutionComponentData.tagTargetUrl}`);
+          const resultInfo = await jira.jiraGet(state.profile.svnOptionsUsername, state.profile.svnOptionsPassword, `${tagReportExecutionComponentData.componentTagTargetUrl}`);
           tagExist = (resultInfo.status === 200);
         } catch (error) {
           tagExist = false;
         }
         if (!tagExist) {
-          consoleLog.logNewLine(`Tagging ${componentEntry.componentName} with tag ${tagReportExecutionComponentData.tagName}`, 'green');
-          const svnCopyCommand = `svn copy "${tagReportExecutionComponentData.tagSourceUrl}" "${tagReportExecutionComponentData.tagTargetUrl}" -m "${tagReportExecutionComponentData.tagName}"`;
+          consoleLog.logNewLine(`Tagging ${componentEntry.componentName} with tag ${tagReportExecutionComponentData.componentTagName}`, 'green');
+          const svnCopyCommand = `svn copy "${tagReportExecutionComponentData.componentTagSourceUrl}" "${tagReportExecutionComponentData.componentTagTargetUrl}" -m "${tagReportExecutionComponentData.componentTagName}"`;
+          // eslint-disable-next-line no-param-reassign
+          tagReportExecutionComponentData.componentWasTagged = true;
           consoleLog.logNewLine(`${svnCopyCommand}`, 'gray');
           if (bComponentTaggingEnabled) {
             try {
@@ -135,7 +138,7 @@ async function perform(componentEntry) {
           //   }
           // }
         } else {
-          consoleLog.logNewLine(`Skipping ${componentEntry.componentName}, since tag ${tagReportExecutionComponentData.tagNumber} already exists`, 'red');
+          consoleLog.logNewLine(`Skipping ${componentEntry.componentName}, since tag ${tagReportExecutionComponentData.componentTagNumber} already exists`, 'red');
         }
         state.componentTagsCreated.push(componentEntry.componentBaseFolder);
         consoleLog.logNewLine('', 'gray');
@@ -152,7 +155,7 @@ async function perform(componentEntry) {
       let jiraProjectCounter = 1;
       for await (const jiraProject of tagReportExecutionComponentData.jiraProjects) {
         // create fix version in each distinct project, if it not exists already
-        consoleLog.logNewLine(`[${jiraProjectCounter}/${tagReportExecutionComponentData.jiraProjects.length}] adding fix version '${tagReportExecutionComponentData.tagName}' to project '${jiraProject}'`, 'green');
+        consoleLog.logNewLine(`[${jiraProjectCounter}/${tagReportExecutionComponentData.jiraProjects.length}] adding fix version '${tagReportExecutionComponentData.componentTagName}' to project '${jiraProject}'`, 'green');
         if (bComponentJiraHandlingEnabled) {
           try {
             await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionComponentData.tagName, true);
@@ -168,13 +171,13 @@ async function perform(componentEntry) {
       jiraIssueCounter = 1;
       for await (const jiraIssue of tagReportExecutionComponentData.jiraIssues) {
         // create fix version in each issue
-        consoleLog.logNewLine(`[${jiraIssueCounter}/${tagReportExecutionComponentData.jiraIssues.length}] adding fix version '${tagReportExecutionComponentData.tagName}' to jira issue '${jiraIssue.jiraIssueNumber}'`, 'green');
+        consoleLog.logNewLine(`[${jiraIssueCounter}/${tagReportExecutionComponentData.jiraIssues.length}] adding fix version '${tagReportExecutionComponentData.componentTagName}' to jira issue '${jiraIssue.jiraIssueNumber}'`, 'green');
         // perform on sample project
         if (bComponentJiraHandlingEnabled) {
           try {
-            await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionComponentData.tagName);
+            await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionComponentData.componentTagName);
           } catch (error) {
-            consoleLog.logNewLine(`Errors while executing updateJiraIssueFixVersion: ${jiraIssue.jiraIssueNumber} ${tagReportExecutionComponentData.tagName}`, 'gray');
+            consoleLog.logNewLine(`Errors while executing updateJiraIssueFixVersion: ${jiraIssue.jiraIssueNumber} ${tagReportExecutionComponentData.componentTagName}`, 'gray');
             beep(3);
           }
         }
@@ -189,10 +192,12 @@ async function batchUpdateExternals() {
   const argreplaceAndWriteExternals = [];
   try {
     state.tagReportArray[0].componentCollection.forEach((entry) => {
-      const component = entry.bareComponentName;
-      const from = entry.currentTagNumber;
-      const to = entry.tagNumber;
-      argreplaceAndWriteExternals.push({ component, from, to });
+      if ((clargs.argv.tagReportExecutionMode === 'component' && entry.componentWasTagged) || (clargs.argv.tagReportExecutionMode === 'solution' && entry.componentWasTaggedForSolution)) {
+        const component = entry.bareComponentName;
+        const from = entry.currentComponentTagNumber;
+        const to = `tags/${entry.componentTagNumber}`;
+        argreplaceAndWriteExternals.push({ component, from, to });
+      }
     });
     await componentToTrunk.replaceAndWriteExternals(argreplaceAndWriteExternals);
     // eslint-disable-next-line no-param-reassign
