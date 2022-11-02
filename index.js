@@ -42,6 +42,11 @@ function getComponentName(componentBaseFolder) {
   return { fullComponentName, bareComponentName };
 }
 async function main() {
+  const commandHandlers = clargs.getCommandHandlers();
+  if (!clargs.argv._[0] || !(clargs.argv._[0] in commandHandlers)) {
+    throw new Error('Must provide a valid command');
+  }
+
   try {
     // if provided, add username and password to the svn options
     if (state.profile.svnOptionsUsername && state.profile.svnOptionsPassword) {

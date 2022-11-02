@@ -22,7 +22,7 @@ const jiraPost = async (username, password, method, url, data) => {
 // intend: create a new version for a particular project, if necessary
 async function updateJiraIssueFixVersion(jiraUsername, jiraPassword, jiraIssueNumber, fixVersion) {
   const data = `{"update":{"fixVersions":[{"add":{"name":"${fixVersion}"}}]}}`;
-  const result = await jiraPost(jiraUsername, jiraPassword, 'put', `https://jira.bearingpointcaribbean.com/rest/api/latest/issue/${jiraIssueNumber}`, data);
+  const result = await jiraPost(jiraUsername, jiraPassword, 'put', `https://jira.bearingpointcaribbean.com/rest/api/latest/issue/${jiraIssueNumber}?notifyUsers=false`, data);
   if (result.self) {
     consoleLog.logNewLine('Updated', result.self, 'gray');
     return result.self;
