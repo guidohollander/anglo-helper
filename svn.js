@@ -137,7 +137,7 @@ async function getTag(url, tagNumberinPreviousSolution) {
   const lsTagsOrBranches = await promises.svnListPromise(`"${sListURL}/${derivedSvnTrunkBranchOrTagPart}"`);
 
   // bHasPrevious: consider solutions/components without previous tags or branches
-  const bHasPrevious = Array.isArray(lsTagsOrBranches.list.entry);
+  let bHasPrevious = Array.isArray(lsTagsOrBranches.list.entry);
   // (Object.prototype.hasOwnProperty.call(lsTagsOrBranches, 'list') ? Object.prototype.hasOwnProperty.call(lsTagsOrBranches.list.entry, 'length') : false);
   let arrTagsOrBranches;
   if (bHasPrevious) {
@@ -149,6 +149,7 @@ async function getTag(url, tagNumberinPreviousSolution) {
       arrTagsOrBranchesSorted = arrTagsOrBranches.map((a) => a.name.replace(/\d+/g, (n) => +n + 100000)).sort().map((a) => a.replace(/\d+/g, (n) => +n - 100000));
     } else {
       // nothing to be sorted since there's only 1
+      bHasPrevious = false;
       arrTagsOrBranchesSorted = arrTagsOrBranches;
     }
   }
