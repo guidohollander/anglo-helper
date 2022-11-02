@@ -13,5 +13,10 @@
         "name": "MTS_ANGUILLA",
         "functionalName": "MTS Anguilla",
         "customer": "ANGUILLA"
-    }
+    },
+    {
+        "name": "BDSU_MTS",
+        "functionalName": "MTS Belastingdienst Suriname",
+        "customer": "Belastingdienst Suriname"
+    }    
 ]
