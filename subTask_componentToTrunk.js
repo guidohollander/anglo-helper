@@ -48,6 +48,8 @@ async function updateExternal(arrComponents, arrExternals, componentName, search
     console.log(`Updated ${oldString.split('\'')[1]}`);
     // match updated external from file with component, so we know which one to switch
     const matchingComponentEntry = arrComponents.find((component) => decodeURI(oldString.split(' ')[0].toLowerCase()) === component.path.toLowerCase());
+    matchingComponentEntry.path = matchingComponentEntry.path.replace(searchVal, replaceVal);
+    matchingComponentEntry.relativeUrl = matchingComponentEntry.relativeUrl.replace(searchVal, replaceVal);
     arrUpdatedComponentEntries.push(matchingComponentEntry);
   }
   return {
@@ -112,8 +114,7 @@ async function perform(arr) {
       try {
         if (answers.areyousure) {
           const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers);
-
-          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
+          // await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
             await subTaskSwitch.perform(componentEntry);
