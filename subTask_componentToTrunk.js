@@ -21,7 +21,23 @@ function getAllIndexes(arr, val) {
   return indexes;
 }
 
-async function updateExternal(arrComponents, arrExternals, componentName, bareComponentName, searchVal, replaceVal) {
+
+
+async function writeExternals(sExternals, componentToTrunkAnswers) {
+  const fMod = `ext_mod_${crypto.randomBytes(8).toString('hex')}`;
+  fs.writeFileSync(fMod, sExternals);
+  let commitMessage;
+  if (componentToTrunkAnswers) {
+    commitMessage = `[${componentToTrunkAnswers.jiraIssue ? componentToTrunkAnswers.jiraIssue : ''}]: auto update external ${componentToTrunkAnswers.componentSelector.selectedComponent.key} from ${componentToTrunkAnswers.componentSelector.selectedComponent.relativeUrl} to trunk`;
+  } else {
+    commitMessage = 'Auto update externals';
+  }
+  const svnCommand = `svnmucc propsetf svn:externals ${fMod} ${state.oSVNInfo.remoteRepo} -m "${commitMessage}"`;
+  await util.execShellCommand(svnCommand);
+  fs.unlinkSync(fMod);
+}
+
+async function updateExternal(arrComponents, arrExternals, componentName, searchVal, replaceVal) {
   const arrUpdatedComponentEntries = [];
   const indexes = getAllIndexes(arrExternals, componentName);
   // eslint-disable-next-line no-restricted-syntax
@@ -38,20 +54,6 @@ async function updateExternal(arrComponents, arrExternals, componentName, bareCo
     externals: arrExternals.join('\r\n'),
     updateComponentEntries: arrUpdatedComponentEntries,
   };
-}
-
-async function writeExternals(sExternals, componentToTrunkAnswers) {
-  const fMod = `ext_mod_${crypto.randomBytes(8).toString('hex')}`;
-  fs.writeFileSync(fMod, sExternals);
-  let commitMessage;
-  if (componentToTrunkAnswers) {
-    commitMessage = `[${componentToTrunkAnswers.jiraIssue ? componentToTrunkAnswers.jiraIssue : ''}]: auto update external ${componentToTrunkAnswers.componentSelector.selectedComponent.key} from ${componentToTrunkAnswers.componentSelector.selectedComponent.relativeUrl} to trunk`;
-  } else {
-    commitMessage = 'Auto update externals';
-  }
-  const svnCommand = `svnmucc propsetf svn:externals ${fMod} ${state.oSVNInfo.remoteRepo} -m "${commitMessage}"`;
-  await util.execShellCommand(svnCommand);
-  fs.unlinkSync(fMod);
 }
 
 // provide 1 or more
@@ -110,7 +112,7 @@ async function perform(arr) {
       try {
         if (answers.areyousure) {
           const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers);
-          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
+          // await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
             await subTaskSwitch.perform(componentEntry);

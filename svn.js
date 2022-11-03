@@ -127,9 +127,13 @@ async function getTag(url, tagNumberinPreviousSolution) {
   const svnPathPartLength = bSolutionOrComponentOnTrunk ? 1 : 2;
   const svnPathPart = arrUrl.splice(-svnPathPartLength);
   const actualSvnTrunkBranchOrTagPart = svnPathPart[0].replace('"', '');
-  const derivedSvnTrunkBranchOrTagPart = bSolutionOrComponentOnTrunk ? 'tags' : actualSvnTrunkBranchOrTagPart;
+  let derivedSvnTrunkBranchOrTagPart = bSolutionOrComponentOnTrunk ? 'tags' : actualSvnTrunkBranchOrTagPart;
   const actualSvnTrunkBranchOrTagNumberPart = svnPathPart[svnPathPart.length - 1].replace('"', '');
-  const derivedSvnTrunkBranchOrTagNumberPart = actualSvnTrunkBranchOrTagNumberPart === 'undefined' ? 0 : actualSvnTrunkBranchOrTagNumberPart;
+  let derivedSvnTrunkBranchOrTagNumberPart = actualSvnTrunkBranchOrTagNumberPart === 'undefined' ? 0 : actualSvnTrunkBranchOrTagNumberPart;
+  // if (tagNumberinPreviousSolution !== '') {
+  //   derivedSvnTrunkBranchOrTagPart = 'tags';
+  //   derivedSvnTrunkBranchOrTagNumberPart = tagNumberinPreviousSolution;
+  // }
   const sListURL = arrUrl.join('/').replace('"', '');
   let arrTagsOrBranchesSorted = [];
   let currentArrTagsOrBranchesSorted = [];
@@ -189,7 +193,7 @@ async function getTag(url, tagNumberinPreviousSolution) {
     }
   }
 
-  previousArrTagsOrBranchesSorted = bSolutionOrComponentOnTrunk ? arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1] : arrTagsOrBranchesSorted[indexCurrent - 1];
+  previousArrTagsOrBranchesSorted = bSolutionOrComponentOnTrunk ? (tagNumberinPreviousSolution !== '' ? tagNumberinPreviousSolution : arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1]) : arrTagsOrBranchesSorted[indexCurrent - 1];
 
   if (bHasPrevious) {
     previousUrl = url.replace(currentArrTagsOrBranchesSorted, bSolutionOrComponentOnTrunk ? `${derivedSvnTrunkBranchOrTagPart}/` : '') + previousArrTagsOrBranchesSorted;
