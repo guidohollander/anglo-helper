@@ -10,6 +10,7 @@ const state = require('./state');
 const teams = require('./teams');
 const subTaskSwitch = require('./subTask_switch');
 const clargs = require('./arguments');
+const svn = require('./svn');
 
 const svnOptions = { trustServerCert: true };
 
@@ -21,14 +22,12 @@ function getAllIndexes(arr, val) {
   return indexes;
 }
 
-
-
-async function writeExternals(sExternals, componentToTrunkAnswers) {
+async function writeExternals(sExternals, componentToTrunkAnswers, source, target) {
   const fMod = `ext_mod_${crypto.randomBytes(8).toString('hex')}`;
   fs.writeFileSync(fMod, sExternals);
   let commitMessage;
   if (componentToTrunkAnswers) {
-    commitMessage = `[${componentToTrunkAnswers.jiraIssue ? componentToTrunkAnswers.jiraIssue : ''}]: auto update external ${componentToTrunkAnswers.componentSelector.selectedComponent.key} from ${componentToTrunkAnswers.componentSelector.selectedComponent.relativeUrl} to trunk`;
+    commitMessage = `[${componentToTrunkAnswers.jiraIssue ? componentToTrunkAnswers.jiraIssue : ''}]: auto update external ${componentToTrunkAnswers.componentSelector.selectedComponent.key} from ${source} to ${target}`;
   } else {
     commitMessage = 'Auto update externals';
   }
@@ -50,6 +49,7 @@ async function updateExternal(arrComponents, arrExternals, componentName, search
     const matchingComponentEntry = arrComponents.find((component) => decodeURI(oldString.split(' ')[0].toLowerCase()) === component.path.toLowerCase());
     matchingComponentEntry.path = matchingComponentEntry.path.replace(searchVal, replaceVal);
     matchingComponentEntry.relativeUrl = matchingComponentEntry.relativeUrl.replace(searchVal, replaceVal);
+    matchingComponentEntry.oldRelativeUrl = searchVal;
     arrUpdatedComponentEntries.push(matchingComponentEntry);
   }
   return {
@@ -59,11 +59,11 @@ async function updateExternal(arrComponents, arrExternals, componentName, search
 }
 
 // provide 1 or more
-async function replaceAndWriteExternalsComponentToTrunk(answers) {
+async function replaceAndWriteExternalsComponentToTrunk(answers, source, target) {
   const oExternals = await promises.svnPropGetPromise('svn:externals', state.oSVNInfo.remoteRepo, svnOptions);
   const externals = oExternals.target.property._.split('\r\n');
-  const oUpdatedExternals = await updateExternal(answers.componentSelector.componentCollection, externals, answers.componentSelector.selectedComponent.key, answers.componentSelector.selectedComponent.relativeUrl, 'trunk');
-  await writeExternals(oUpdatedExternals.externals, answers);
+  const oUpdatedExternals = await updateExternal(answers.componentSelector.componentCollection, externals, answers.componentSelector.selectedComponent.key, source, target);
+  await writeExternals(oUpdatedExternals.externals, answers, source, target);
   return oUpdatedExternals;
 }
 
@@ -85,7 +85,7 @@ async function replaceAndWriteExternals(arrChanges) {
   }
 }
 
-async function perform(arr) {
+async function performTagToTrunk(arr) {
   const oarrQ = arr.filter((e) => e.isExternal && e.isTagged && e.isCoreComponent);
   const arrQ = Object.values(oarrQ).map((i) => ({ value: { selectedComponent: i, componentCollection: arr }, name: `${i.key} [${i.relativeUrl}]` }));
 
@@ -113,8 +113,67 @@ async function perform(arr) {
     .then(async (answers) => {
       try {
         if (answers.areyousure) {
-          const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers);
-          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
+          const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers, `tags/${answers.tagSelector}`, 'trunk');
+          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
+          // eslint-disable-next-line no-restricted-syntax
+          for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
+            await subTaskSwitch.perform(componentEntry);
+          }
+        }
+      } catch (error) {
+        console.dir(error);
+      }
+    });
+}
+
+async function performTrunkToTag(arr) {
+  const oarrQ = arr.filter((e) => e.isExternal && e.isTrunk && e.isCoreComponent);
+  const arrQ = Object.values(oarrQ).map((i) => ({ value: { selectedComponent: i, componentCollection: arr }, name: `${i.key} [${i.relativeUrl}]` }));
+
+  if (!state.oSolution.current.relativeUrl === 'trunk') consoleLog('Warning!! Your repository is not pointing towards the trunk!', 'red');
+  await inquirer
+    .prompt([
+      {
+        type: 'search-list',
+        message: 'Search and select solution component to switch to a tag',
+        name: 'componentSelector',
+        choices: arrQ,
+      },
+      {
+        type: 'search-list',
+        message: 'Search and select a tag of the selected component',
+        name: 'tagSelector',
+        choices: async (answers) => {
+          // console.log(answers);
+          let arrTagsSorted;
+          const componentTagList = await promises.svnListPromise(`${state.oSVNInfo.baseURL}${answers.componentSelector.selectedComponent.componentBaseFolder}/tags/`.replace('com//', 'com/'));
+          // eslint-disable-next-line no-restricted-globals
+          const arrTags = componentTagList.list.entry.filter((item) => !isNaN(item.name.charAt(0)));
+          if (arrTags.length > 1) {
+            arrTagsSorted = arrTags.map((a) => a.name.replace(/\d+/g, (n) => +n + 100000)).sort().reverse().map((a) => a.replace(/\d+/g, (n) => +n - 100000));
+          } else {
+            arrTagsSorted = [];
+          }
+          return arrTagsSorted;
+        },
+      },
+      {
+        type: 'boolean',
+        message: (question) => `Are you sure you want to switch '${question.componentSelector.selectedComponent.key}' from trunk to a tag?`,
+        name: 'areyousure',
+        default: true,
+      },
+      {
+        type: 'input',
+        message: 'Optionally specify a JIRA issue. It will be registered in the svn commit and anglo-helper teams messages.',
+        name: 'jiraIssue',
+      },
+    ])
+    .then(async (answers) => {
+      try {
+        if (answers.areyousure) {
+          const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers, 'trunk', `tags/${answers.tagSelector}`);
+          await teams.postMessageToTeams('anglo-helper --componentToTag', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
             await subTaskSwitch.perform(componentEntry);
@@ -127,9 +186,7 @@ async function perform(arr) {
 }
 
 module.exports = {
-  perform,
+  performTrunkToTag,
+  performTagToTrunk,
   replaceAndWriteExternals,
 };
-
-// const argreplaceAndWriteExternalsComponentToTrunk = [];
-// argreplaceAndWriteExternalsComponentToTrunk.push({ component: answers.componentSelector.selectedComponent.bareComponentName, from: answers.componentSelector.selectedComponent.relativeUrl, to: 'trunk' });

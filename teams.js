@@ -31,7 +31,9 @@ async function postMessageToTeams(title, message) {
             },
             {
               type: 'TextBlock',
-              text: `<at>Anglo-helper channel</at> ${message}`,
+              text: `<at>Anglo-helper channel</at> 
+              
+              ${message}`,
             },
           ],
           $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',

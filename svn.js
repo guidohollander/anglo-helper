@@ -13,6 +13,11 @@ async function getArrExternals(url) {
   return svnExternals.target.property._.split('\r\n');
 }
 
+async function getTagList(url) {
+  const lsTags = await promises.svnListPromise(`"${url}/tags/"`);
+  return lsTags;
+}
+
 async function getProbableSolution() {
   const cwd = process.cwd().toLowerCase();
   let probableSolution = '';
@@ -256,10 +261,12 @@ async function getTag(url, tagNumberinPreviousSolution) {
   }
   return oReturnObject;
 }
+
 module.exports = {
   getArrExternals,
   getProbableSolution,
   getSVNContext,
   getTag,
   svnOptions,
+  getTagList,
 };

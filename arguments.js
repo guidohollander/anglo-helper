@@ -20,7 +20,11 @@ module.exports = {
       type: 'boolean',
     })
     .option('componentToTrunk', {
-      description: 'switch a selected component to trunk and update its svn:external definition. Can only be used on solution trunk',
+      description: 'switch a selected, tagged component to trunk and update its svn:external definition. Can only be used on solution trunk',
+      type: 'boolean',
+    })
+    .option('componentToTag', {
+      description: 'switch a selected component on trunk to an existing tag and update its svn:external definition. Can only be used on solution trunk',
       type: 'boolean',
     })
     .option('verbose', {
@@ -104,7 +108,7 @@ module.exports = {
     .option('generateFlywaywBatch', {
       description: 'for every core component, generate an .anglo-helper folder with a af_fw.bat file.',
       type: 'boolean',
-    })    
+    })
     .option('component', {
       description: "limit the set of components to (partly) match the specified string (case insensitive), i.e. --component '_CONTINUOUS_DELIVERY' or --component 'assessment'.",
       type: 'string',

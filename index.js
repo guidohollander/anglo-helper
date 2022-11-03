@@ -296,7 +296,7 @@ async function main() {
     const spacer = '∙';
     let dir;
     // loop all folder in arrAll
-    const bEntryAction = !clargs.argv.componentToTrunk;
+    const bEntryAction = !clargs.argv.componentToTrunk && !clargs.argv.componentToTag;
     if (bEntryAction) {
       // eslint-disable-next-line no-restricted-syntax
       for await (const entry of arrAll) {
@@ -379,7 +379,9 @@ async function main() {
         progressCounter += 1;
       }
     } else if (clargs.argv.componentToTrunk) {
-      await componentToTrunk.perform(arrAll);
+      await componentToTrunk.performTagToTrunk(arrAll);
+    } else if (clargs.argv.componentToTag) {
+      await componentToTrunk.performTrunkToTag(arrAll);
     }
     if (clargs.argv.tagReportExecution) {
       // to update all externals to the newly created tags
