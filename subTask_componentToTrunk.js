@@ -112,7 +112,7 @@ async function perform(arr) {
       try {
         if (answers.areyousure) {
           const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers);
-          // await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
+          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.relativeUrl} to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
             await subTaskSwitch.perform(componentEntry);
