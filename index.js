@@ -42,54 +42,6 @@ function getComponentName(componentBaseFolder) {
   const bareComponentName = p1[p1.length - 1];
   return { fullComponentName, bareComponentName };
 }
-
-function replaceTag(t) {
-  return t.replace('tags/', '🏷');
-}
-
-function replaceTrunk(t) {
-  return t.replace('trunk', '🪵');
-}
-
-function replaceBranch(t) {
-  return t.replace('branches/', '⸙');
-}
-
-function getSvnInfo(entry) {
-  let retVal = '';
-  if (state.profile.verbose) {
-    // both internal and external
-    // if (entry.isTrunk ) {
-    //   retVal = `${replaceTrunk('trunk')}`;
-    // }
-    // internal
-    if (entry.isInternal && (entry.isTagged)) {
-      retVal = ` ◂ ${replaceTag(state.oSVNInfo.angloSVNPath)} ▸`;
-    }
-    if (entry.isInternal && (entry.isBranched)) {
-      retVal = ` ◂ ${replaceBranch(state.oSVNInfo.angloSVNPath)} ▸`;
-    }
-    // external
-    if (entry.isExternal && entry.isTrunk) {
-      retVal = ` ◃ ${replaceTrunk('trunk')} ▹`;
-    }
-    if (entry.isExternal && entry.isTagged) {
-      retVal = ` ◃ ${replaceTag(entry.relativeUrl)} ▹`;
-    }
-    if (entry.isExternal && entry.isBranched) {
-      retVal = ` ◃ ${replaceBranch(entry.relativeUrl)} ▹`;
-    }
-  }
-  return retVal;
-}
-
-function showCtrlC() {
-  consoleLog.logNewLine('', 'gray');
-  consoleLog.logNewLine('Use X to exit', 'red');
-  consoleLog.logNewLine('', 'gray');
-  process.exit(0);
-}
-
 async function main() {
   // const commandHandlers = clargs.getCommandHandlers();
   // if (!clargs.argv._[0] || !(clargs.argv._[0] in commandHandlers)) {
@@ -154,7 +106,7 @@ async function main() {
       if (clargs.argv.writeJsonFiles) {
         fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
         fs.writeFileSync('./externals_difference_raw.json', JSON.stringify(state.arrExt, null, 2));
-        fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrIntFilter, null, 2));
+        fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrIntFilter, null, 2));        
       }
       arrIntFilter.forEach((entry) => {
         const tidied = anglo.tidyArrayContent(entry);
@@ -190,7 +142,7 @@ async function main() {
           componentBaseFolder: decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
           componentName: component.fullComponentName,
           bareComponentName: component.bareComponentName,
-          relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/').split('/').splice(-2).join('/'),
+          relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/'),
           isExternal: true,
           isCoreComponent: !tidied.name.toLowerCase().includes('interface def'),
           isInterfaceDefinition: tidied.name.toLowerCase().includes('interface def'),
@@ -225,9 +177,9 @@ async function main() {
         isSolutionComponent: entry.name.toLowerCase().startsWith('sc'),
         componentName: entry.name,
         bareComponentName: entry.name,
-        isTagged: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('tags'),
-        isBranched: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('branches'),
-        isTrunk: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('trunk'),
+        isTagged: decodeURI(entry.path).toLocaleLowerCase().includes('/tags/'),
+        isBranched: decodeURI(entry.path).toLocaleLowerCase().includes('/branches/'),
+        isTrunk: decodeURI(entry.path).toLocaleLowerCase().includes('/trunk/'),
       };
       arrInternals.push(internalEntry);
       // delete entry.$;
@@ -334,7 +286,7 @@ async function main() {
     // render capabilities
     if (actions.length > 0) {
       consoleLog.logNewLine('', 'gray');
-      consoleLog.logNewLine('actions and keypress toggle legend: ', 'gray');
+      consoleLog.logNewLine('actions legend: ', 'gray');
     }
     actions.forEach((action) => {
       // consoleLog.logNewLine(action, 'gray');
@@ -353,8 +305,8 @@ async function main() {
       for await (const entry of arrAll) {
         // if startRow or startProject have been set: start from there, otherwise start from the first
         if ((progressCounter >= clargs.argv.startRow) && (entry.key.toLowerCase() >= clargs.argv.startProject.toLowerCase())) {
-          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key} ${getSvnInfo(entry)}`, 'gray');
-          consoleLog.logThisLine(` ${spacer.repeat(150 - lengthLongestProjectName - entry.key.concat(getSvnInfo(entry)).length)}`, 'gray');
+          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
+          consoleLog.logThisLine(` ${spacer.repeat(130 - lengthLongestProjectName - entry.key.length)}`, 'gray');
           dir = anglo.unifyPath(state.workingCopyFolder) + entry.key;
           const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(entry.key);
           if (fs.existsSync(dir)) {
@@ -371,13 +323,13 @@ async function main() {
             const switchPath = state.oSVNInfo.baseURL + entry.path;
             entry.match = (switchPath.toLowerCase() === decodeURI(resultInfo.entry.url).toLowerCase());
             // switch if autoswtich enabled local and remote do not match
-            if (state.profile.autoSwitch) {
+            if (state.profile.autoSwitch && !entry.isInternal) {
               await subTaskSwitch.perform(entry);
             } else {
               // [S] not enabled
             }
             // update if autoUpdate enabled
-            if (entry.isTrunk && state.profile.autoUpdate) {
+            if (state.profile.autoUpdate) {
               await subTaskUpdate.perform(entry);
             } else {
               // [U] not enabled
@@ -767,11 +719,6 @@ async function prequal() {
     console.log('Specify jiraUsername / jiraUsername in active profile or as command line argument');
     process.exit(state.exitCode);
   }
-
-  process.on('SIGINT', () => { showCtrlC(); }); // CTRL+C
-  process.on('SIGQUIT', () => { showCtrlC(); }); // Keyboard quit
-  process.on('SIGTERM', () => { showCtrlC(); }); // `kill` command
-
   readline.emitKeypressEvents(process.stdin);
   if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
   process.stdin.on('keypress', (chunk, key) => {
