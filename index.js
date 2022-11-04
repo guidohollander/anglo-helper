@@ -26,6 +26,7 @@ const arrSolutions = require('./solutions.json');
 const pjson = require('./package.json');
 const componentToTrunk = require('./subTask_componentToTrunk');
 const util = require('./util');
+const { oSolution } = require('./state');
 
 // app context
 state.oAppContext = anglo.getProbableApp();
@@ -41,6 +42,19 @@ function getComponentName(componentBaseFolder) {
   const bareComponentName = p1[p1.length - 1];
   return { fullComponentName, bareComponentName };
 }
+
+function getSvnInfo(entry) {
+  let retVal = '';
+  if (state.profile.verbose) {
+    if (entry.isInternal && (entry.isTagged || entry.isBranched)) {
+      retVal = ` <${state.oSVNInfo.angloSVNPath}>`;
+    } if (entry.isExternal && entry.isTagged) {
+      retVal = ` <${entry.relativeUrl}>`;
+    }
+  }
+  return retVal;
+}
+
 async function main() {
   // const commandHandlers = clargs.getCommandHandlers();
   // if (!clargs.argv._[0] || !(clargs.argv._[0] in commandHandlers)) {
@@ -93,7 +107,6 @@ async function main() {
     consoleLog.logNewLine('', 'gray');
     consoleLog.logNewLine(`getting externals from current solution ${state.oSolution.current.relativeUrl} [rev:${state.oSolution.current.tagRevisionNumber}]`, 'gray');
     state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
-    // fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
     if (clargs.argv.tagReport) {
       consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.tagRevisionNumber}]`, 'gray');
       state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl
@@ -101,10 +114,13 @@ async function main() {
       consoleLog.logNewLine(`determine difference between ${state.oSolution.previous.relativeUrl} and ${state.oSolution.current.relativeUrl} rev:{${state.oSolution.previous.tagRevisionNumber}:${state.oSolution.current.tagRevisionNumber}}`, 'gray');
       // difference
       state.arrExt = state.arrSVNExternalsCurrentSolutionTag.filter((x) => !state.arrSVNExternalsPreviousSolutionTag.includes(x));
-      // fs.writeFileSync('./externals_difference_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
       // intersection: result can be used as filter on internals since we want ALL internals except for the ones that correspond with unmodified tagged components
       const arrIntFilter = state.arrSVNExternalsCurrentSolutionTag.filter((x) => state.arrSVNExternalsPreviousSolutionTag.includes(x));
-      // fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
+      if (clargs.argv.writeJsonFiles) {
+        fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
+        fs.writeFileSync('./externals_difference_raw.json', JSON.stringify(state.arrExt, null, 2));
+        fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrIntFilter, null, 2));
+      }
       arrIntFilter.forEach((entry) => {
         const tidied = anglo.tidyArrayContent(entry);
         if (tidied.name !== '') {
@@ -302,8 +318,8 @@ async function main() {
       for await (const entry of arrAll) {
         // if startRow or startProject have been set: start from there, otherwise start from the first
         if ((progressCounter >= clargs.argv.startRow) && (entry.key.toLowerCase() >= clargs.argv.startProject.toLowerCase())) {
-          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
-          consoleLog.logThisLine(` ${spacer.repeat(130 - lengthLongestProjectName - entry.key.length)}`, 'gray');
+          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}${getSvnInfo(entry)}`, 'gray');
+          consoleLog.logThisLine(` ${spacer.repeat(150 - lengthLongestProjectName - entry.key.concat(getSvnInfo(entry)).length)}`, 'gray');
           dir = anglo.unifyPath(state.workingCopyFolder) + entry.key;
           const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(entry.key);
           if (fs.existsSync(dir)) {
@@ -326,7 +342,7 @@ async function main() {
               // [S] not enabled
             }
             // update if autoUpdate enabled
-            if (state.profile.autoUpdate) {
+            if (entry.isTrunk && state.profile.autoUpdate) {
               await subTaskUpdate.perform(entry);
             } else {
               // [U] not enabled
