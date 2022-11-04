@@ -3,6 +3,7 @@ const clear = require('clear');
 const fs = require('fs');
 const beep = require('node-beep');
 const inquirer = require('inquirer');
+const readline = require('readline');
 
 const path = require('path');
 const xlsx = require('xlsx');// npm install xlsx
@@ -26,7 +27,6 @@ const arrSolutions = require('./solutions.json');
 const pjson = require('./package.json');
 const componentToTrunk = require('./subTask_componentToTrunk');
 const util = require('./util');
-const { oSolution } = require('./state');
 
 // app context
 state.oAppContext = anglo.getProbableApp();
@@ -43,16 +43,51 @@ function getComponentName(componentBaseFolder) {
   return { fullComponentName, bareComponentName };
 }
 
+function replaceTag(t) {
+  return t.replace('tags/', '🏷');
+}
+
+function replaceTrunk(t) {
+  return t.replace('trunk', '🪵');
+}
+
+function replaceBranch(t) {
+  return t.replace('branches/', '⸙');
+}
+
 function getSvnInfo(entry) {
   let retVal = '';
   if (state.profile.verbose) {
-    if (entry.isInternal && (entry.isTagged || entry.isBranched)) {
-      retVal = ` <${state.oSVNInfo.angloSVNPath}>`;
-    } if (entry.isExternal && entry.isTagged) {
-      retVal = ` <${entry.relativeUrl}>`;
+    // both internal and external
+    // if (entry.isTrunk ) {
+    //   retVal = `${replaceTrunk('trunk')}`;
+    // }
+    // internal
+    if (entry.isInternal && (entry.isTagged)) {
+      retVal = ` ◂ ${replaceTag(state.oSVNInfo.angloSVNPath)} ▸`;
+    }
+    if (entry.isInternal && (entry.isBranched)) {
+      retVal = ` ◂ ${replaceBranch(state.oSVNInfo.angloSVNPath)} ▸`;
+    }
+    // external
+    if (entry.isExternal && entry.isTrunk) {
+      retVal = ` ◃ ${replaceTrunk('trunk')} ▹`;
+    }
+    if (entry.isExternal && entry.isTagged) {
+      retVal = ` ◃ ${replaceTag(entry.relativeUrl)} ▹`;
+    }
+    if (entry.isExternal && entry.isBranched) {
+      retVal = ` ◃ ${replaceBranch(entry.relativeUrl)} ▹`;
     }
   }
   return retVal;
+}
+
+function showCtrlC() {
+  consoleLog.logNewLine('', 'gray');
+  consoleLog.logNewLine('Use X to exit', 'red');
+  consoleLog.logNewLine('', 'gray');
+  process.exit(0);
 }
 
 async function main() {
@@ -155,7 +190,7 @@ async function main() {
           componentBaseFolder: decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
           componentName: component.fullComponentName,
           bareComponentName: component.bareComponentName,
-          relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/'),
+          relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/').split('/').splice(-2).join('/'),
           isExternal: true,
           isCoreComponent: !tidied.name.toLowerCase().includes('interface def'),
           isInterfaceDefinition: tidied.name.toLowerCase().includes('interface def'),
@@ -190,9 +225,9 @@ async function main() {
         isSolutionComponent: entry.name.toLowerCase().startsWith('sc'),
         componentName: entry.name,
         bareComponentName: entry.name,
-        isTagged: decodeURI(entry.path).toLocaleLowerCase().includes('/tags/'),
-        isBranched: decodeURI(entry.path).toLocaleLowerCase().includes('/branches/'),
-        isTrunk: decodeURI(entry.path).toLocaleLowerCase().includes('/trunk/'),
+        isTagged: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('tags'),
+        isBranched: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('branches'),
+        isTrunk: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('trunk'),
       };
       arrInternals.push(internalEntry);
       // delete entry.$;
@@ -299,7 +334,7 @@ async function main() {
     // render capabilities
     if (actions.length > 0) {
       consoleLog.logNewLine('', 'gray');
-      consoleLog.logNewLine('actions legend: ', 'gray');
+      consoleLog.logNewLine('actions and keypress toggle legend: ', 'gray');
     }
     actions.forEach((action) => {
       // consoleLog.logNewLine(action, 'gray');
@@ -318,7 +353,7 @@ async function main() {
       for await (const entry of arrAll) {
         // if startRow or startProject have been set: start from there, otherwise start from the first
         if ((progressCounter >= clargs.argv.startRow) && (entry.key.toLowerCase() >= clargs.argv.startProject.toLowerCase())) {
-          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}${getSvnInfo(entry)}`, 'gray');
+          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key} ${getSvnInfo(entry)}`, 'gray');
           consoleLog.logThisLine(` ${spacer.repeat(150 - lengthLongestProjectName - entry.key.concat(getSvnInfo(entry)).length)}`, 'gray');
           dir = anglo.unifyPath(state.workingCopyFolder) + entry.key;
           const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(entry.key);
@@ -732,6 +767,36 @@ async function prequal() {
     console.log('Specify jiraUsername / jiraUsername in active profile or as command line argument');
     process.exit(state.exitCode);
   }
+
+  process.on('SIGINT', () => { showCtrlC(); }); // CTRL+C
+  process.on('SIGQUIT', () => { showCtrlC(); }); // Keyboard quit
+  process.on('SIGTERM', () => { showCtrlC(); }); // `kill` command
+
+  readline.emitKeypressEvents(process.stdin);
+  if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
+  process.stdin.on('keypress', (chunk, key) => {
+    if (key && key.name === 'v') {
+      state.profile.verbose = !state.profile.verbose; // toggle
+    }
+    if (key && key.name === 'f') {
+      state.profile.flyway = !state.profile.flyway; // toggle
+    }
+    if (key && key.name === 'u') {
+      state.profile.autoUpdate = !state.profile.autoUpdate; // toggle
+    }
+    if (key && key.name === 's') {
+      state.profile.autoSwitch = !state.profile.autoSwitch; // toggle
+    }
+    if (key && key.name === 'a') { // toggle all
+      state.profile.verbose = !state.profile.autoUpdate;
+      state.profile.autoSwitch = !state.profile.autoUpdate;
+      state.profile.autoUpdate = !state.profile.autoUpdate;
+      state.profile.flyway = !state.profile.autoUpdate;
+    }
+    if (key && key.name === 'x') {
+      process.exit();
+    }
+  });
 }
 clear();
 prequal();
