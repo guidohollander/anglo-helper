@@ -42,6 +42,29 @@ function getComponentName(componentBaseFolder) {
   const bareComponentName = p1[p1.length - 1];
   return { fullComponentName, bareComponentName };
 }
+function getSvnInfo(entry) {
+  let retVal = '';
+  if (state.profile.verbose && !entry.isFrontend) {
+    // internal
+    if (entry.isInternal && (entry.isTagged)) {
+      retVal = ` < ${state.oSVNInfo.angloSVNPath} >`;
+    }
+    if (entry.isInternal && (entry.isBranched)) {
+      retVal = ` < ${state.oSVNInfo.angloSVNPath} >`;
+    }
+    // external
+    if (entry.isExternal && entry.isTrunk) {
+      retVal = ` < ${'trunk'} >`;
+    }
+    if (entry.isExternal && entry.isTagged) {
+      retVal = ` < ${entry.relativeUrl} >`;
+    }
+    if (entry.isExternal && entry.isBranched) {
+      retVal = ` < ${entry.relativeUrl} >`;
+    }
+  }
+  return retVal;
+}
 async function main() {
   // const commandHandlers = clargs.getCommandHandlers();
   // if (!clargs.argv._[0] || !(clargs.argv._[0] in commandHandlers)) {
@@ -142,7 +165,7 @@ async function main() {
           componentBaseFolder: decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
           componentName: component.fullComponentName,
           bareComponentName: component.bareComponentName,
-          relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/'),
+          relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/').split('/').splice(-2).join('/'),
           isExternal: true,
           isCoreComponent: !tidied.name.toLowerCase().includes('interface def'),
           isInterfaceDefinition: tidied.name.toLowerCase().includes('interface def'),
@@ -177,9 +200,9 @@ async function main() {
         isSolutionComponent: entry.name.toLowerCase().startsWith('sc'),
         componentName: entry.name,
         bareComponentName: entry.name,
-        isTagged: decodeURI(entry.path).toLocaleLowerCase().includes('/tags/'),
-        isBranched: decodeURI(entry.path).toLocaleLowerCase().includes('/branches/'),
-        isTrunk: decodeURI(entry.path).toLocaleLowerCase().includes('/trunk/'),
+        isTagged: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('tags'),
+        isBranched: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('branches'),
+        isTrunk: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('trunk'),
       };
       arrInternals.push(internalEntry);
       // delete entry.$;
@@ -305,8 +328,10 @@ async function main() {
       for await (const entry of arrAll) {
         // if startRow or startProject have been set: start from there, otherwise start from the first
         if ((progressCounter >= clargs.argv.startRow) && (entry.key.toLowerCase() >= clargs.argv.startProject.toLowerCase())) {
-          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
-          consoleLog.logThisLine(` ${spacer.repeat(130 - lengthLongestProjectName - entry.key.length)}`, 'gray');
+          // consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
+          // consoleLog.logThisLine(` ${spacer.repeat(130 - lengthLongestProjectName - entry.key.length)}`, 'gray');
+          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key} ${getSvnInfo(entry)}`, 'gray');
+          consoleLog.logThisLine(` ${spacer.repeat(150 - lengthLongestProjectName - entry.key.concat(getSvnInfo(entry)).length)}`, 'gray');          
           dir = anglo.unifyPath(state.workingCopyFolder) + entry.key;
           const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(entry.key);
           if (fs.existsSync(dir)) {
@@ -329,7 +354,7 @@ async function main() {
               // [S] not enabled
             }
             // update if autoUpdate enabled
-            if (state.profile.autoUpdate) {
+            if (state.profile.autoUpdate && entry.isTrunk) {
               await subTaskUpdate.perform(entry);
             } else {
               // [U] not enabled
