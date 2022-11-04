@@ -113,7 +113,7 @@ async function performTagToTrunk(arr) {
     .then(async (answers) => {
       try {
         if (answers.areyousure) {
-          const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers, `tags/${answers.tagSelector}`, 'trunk');
+          const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers, answers.componentSelector.selectedComponent.relativeUrl, 'trunk');
           await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
