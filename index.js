@@ -17,6 +17,7 @@ const state = require('./state');
 const subTaskDeploymentCheck = require('./subTask_deploymentCheck');
 const subTaskCompareSpecific = require('./subTask_compareSpecific');
 const subTaskFlyway = require('./subTask_flyway');
+const subTaskSelect = require('./subTask_select');
 const subTaskSwitch = require('./subTask_switch');
 const subTaskTagReport = require('./subTask_tagReport');
 const subTaskTagReportExecution = require('./subTask_tagReportExecution');
@@ -42,26 +43,46 @@ function getComponentName(componentBaseFolder) {
   const bareComponentName = p1[p1.length - 1];
   return { fullComponentName, bareComponentName };
 }
+function replaceSVNVersion(entry, t) {
+  let retval = t;
+  const spacer = ' ';
+  if (state.profile.supportUnicodeChars) {
+    // const prefix = entry.isInternal ? '[i] ' : '[x] ';
+    // retval = prefix.concat(t);
+    retval = retval.split('/');
+    if (retval.length > 1) {
+      retval[0] = retval[0];
+      retval[1] = spacer.repeat(6 - retval[1].length);
+    }
+    retval = retval.join('/');
+    return retval.replace('tags/', '🏷 '.replace('trunk', '🪵 ')).replace('branches/', '⎇ ');
+  }
+  return retval;
+}
 function getSvnInfo(entry) {
   let retVal = '';
   if (state.profile.verbose && !entry.isFrontend) {
     // internal
+    if (entry.isInternal && (entry.isTrunk)) {
+      retVal = `${replaceSVNVersion(entry, 'trunk')}`;
+    }
     if (entry.isInternal && (entry.isTagged)) {
-      retVal = ` < ${state.oSVNInfo.angloSVNPath} >`;
+      retVal = `${replaceSVNVersion(entry, state.oSVNInfo.currentVersion)}`;
     }
     if (entry.isInternal && (entry.isBranched)) {
-      retVal = ` < ${state.oSVNInfo.angloSVNPath} >`;
+      retVal = `${replaceSVNVersion(entry, state.oSVNInfo.currentVersion)}`;
     }
     // external
     if (entry.isExternal && entry.isTrunk) {
-      retVal = ` < ${'trunk'} >`;
+      retVal = `${replaceSVNVersion(entry, 'trunk')}`;
     }
     if (entry.isExternal && entry.isTagged) {
-      retVal = ` < ${entry.relativeUrl} >`;
+      retVal = `${replaceSVNVersion(entry, entry.relativeUrl)}`;
     }
     if (entry.isExternal && entry.isBranched) {
-      retVal = ` < ${entry.relativeUrl} >`;
+      retVal = `${replaceSVNVersion(entry, entry.relativeUrl)}`;
     }
+    retVal = `[${retVal}]`;
   }
   return retVal;
 }
@@ -116,7 +137,18 @@ async function main() {
     // get externals
     consoleLog.logNewLine('', 'gray');
     consoleLog.logNewLine(`getting externals from current solution ${state.oSolution.current.relativeUrl} [rev:${state.oSolution.current.tagRevisionNumber}]`, 'gray');
-    state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
+    if (clargs.argv.useCache) {
+      const fn = `${state.workingCopyFolder}cached_externals_raw.json`;
+      if (!fs.existsSync(fn)) {
+        state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
+        fs.writeFileSync(fn, JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));        
+      } else {
+        // eslint-disable-next-line import/no-dynamic-require, global-require
+        state.arrSVNExternalsCurrentSolutionTag = require(fn);
+      }
+    } else {
+      state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
+    }
     if (clargs.argv.tagReport) {
       consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.tagRevisionNumber}]`, 'gray');
       state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl
@@ -129,7 +161,7 @@ async function main() {
       if (clargs.argv.writeJsonFiles) {
         fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
         fs.writeFileSync('./externals_difference_raw.json', JSON.stringify(state.arrExt, null, 2));
-        fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrIntFilter, null, 2));        
+        fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrIntFilter, null, 2));
       }
       arrIntFilter.forEach((entry) => {
         const tidied = anglo.tidyArrayContent(entry);
@@ -165,7 +197,10 @@ async function main() {
           componentBaseFolder: decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
           componentName: component.fullComponentName,
           bareComponentName: component.bareComponentName,
-          relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/').split('/').splice(-2).join('/'),
+          relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/')
+            .split('/')
+            .splice(-2)
+            .join('/'),
           isExternal: true,
           isCoreComponent: !tidied.name.toLowerCase().includes('interface def'),
           isInterfaceDefinition: tidied.name.toLowerCase().includes('interface def'),
@@ -183,7 +218,18 @@ async function main() {
       fs.writeFileSync('./externals.json', JSON.stringify(arrExternals, null, 2));
     }
     // get internals
-    const lsInternals = await promises.svnListPromise(state.oSolution.current.tagUrl);
+    let lsInternals
+    if (clargs.argv.useCache) {
+      const fn = `${state.workingCopyFolder}cached_internals_raw.json`;
+      if (!fs.existsSync(fn)) {
+        lsInternals = await promises.svnListPromise(state.oSolution.current.tagUrl);
+        fs.writeFileSync(fn, JSON.stringify(lsInternals, null, 2));
+      } else {
+        lsInternals = require(fn);
+      }
+    } else {
+      lsInternals = await promises.svnListPromise(state.oSolution.current.tagUrl);
+    }
     const arrInternals = [];
     consoleLog.logNewLine('getting internals', 'gray');
     lsInternals.list.entry.forEach((entry) => {
@@ -200,9 +246,9 @@ async function main() {
         isSolutionComponent: entry.name.toLowerCase().startsWith('sc'),
         componentName: entry.name,
         bareComponentName: entry.name,
-        isTagged: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('tags'),
-        isBranched: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('branches'),
-        isTrunk: decodeURI(state.oSVNInfo.angloSVNPath).toLocaleLowerCase().includes('trunk'),
+        isTagged: decodeURI(state.oSVNInfo.URL).toLocaleLowerCase().includes('tags'),
+        isBranched: decodeURI(state.oSVNInfo.URL).toLocaleLowerCase().includes('branches'),
+        isTrunk: decodeURI(state.oSVNInfo.URL).toLocaleLowerCase().includes('trunk'),
       };
       arrInternals.push(internalEntry);
       // delete entry.$;
@@ -330,8 +376,8 @@ async function main() {
         if ((progressCounter >= clargs.argv.startRow) && (entry.key.toLowerCase() >= clargs.argv.startProject.toLowerCase())) {
           // consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
           // consoleLog.logThisLine(` ${spacer.repeat(130 - lengthLongestProjectName - entry.key.length)}`, 'gray');
-          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key} ${getSvnInfo(entry)}`, 'gray');
-          consoleLog.logThisLine(` ${spacer.repeat(150 - lengthLongestProjectName - entry.key.concat(getSvnInfo(entry)).length)}`, 'gray');          
+          consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
+          consoleLog.logThisLine(` ${spacer.repeat(150 - lengthLongestProjectName - entry.key.concat(getSvnInfo(entry)).length)}${getSvnInfo(entry)}> `, 'gray');
           dir = anglo.unifyPath(state.workingCopyFolder) + entry.key;
           const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(entry.key);
           if (fs.existsSync(dir)) {
@@ -354,7 +400,7 @@ async function main() {
               // [S] not enabled
             }
             // update if autoUpdate enabled
-            if (state.profile.autoUpdate && entry.isTrunk) {
+            if (state.profile.autoUpdate && (entry.isTrunk || clargs.argv.select)) {
               await subTaskUpdate.perform(entry);
             } else {
               // [U] not enabled
@@ -686,45 +732,8 @@ async function prequal() {
         }
       });
   } else if (clargs.argv.select) {
-    consoleLog.renderTitleToVersion();
-    const svnToVersionTagsChoices = await promises.svnListPromise(`${state.oSVNInfo.appRoot}/tags`);
-    const qTags = svnToVersionTagsChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'tags/'.concat(b.name));
-    const svnToVersionBranchesChoices = await promises.svnListPromise(`${state.oSVNInfo.appRoot}/branches`);
-    const qBranches = svnToVersionBranchesChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'branches/'.concat(b.name));
-    const qarrToVersion = qBranches.concat(qTags);
-    qarrToVersion.push('trunk');
-    const questionsToVersion = [
-      {
-        type: 'list',
-        name: 'selectedSVNVersion',
-        message: 'Pick a version, any version.',
-        choices: qarrToVersion,
-        default: state.oSVNInfo.currentVersion,
-      }];
-    await inquirer
-      .prompt(questionsToVersion)
-      .then((answersToVersion) => {
-        state.oSVNInfo.remoteRepo = state.oSVNInfo.appRoot + answersToVersion.selectedSVNVersion;
-        const urlParts = state.oSVNInfo.remoteRepo.split('/');
-        state.oSVNInfo.angloSVNPath = urlParts[urlParts.length - 1];
-        state.oSVNInfo.repo = urlParts[urlParts.length - 2];
-        state.oSVNInfo.svnAndApp = `/svn/${urlParts[urlParts.length - 3]}/`;
-        const fn = 'profile_1.json';
-        // eslint-disable-next-line import/no-dynamic-require, global-require
-        state.profile = require(path.normalize(state.workingCopyFolder + fn));
-        state.profile.filename = fn;
-        svn.getSVNContext(state.app, state.workingCopyFolder, answersToVersion.selectedSVNVersion);
-        main();
-      })
-      .catch((error) => {
-        if (error.isTtyError) {
-          // eslint-disable-next-line no-console
-          console.log('Your console environment is not supported!');
-        } else {
-          // eslint-disable-next-line no-console
-          console.dir(error);
-        }
-      });
+    await subTaskSelect.perform();
+    main();
   } else {
     if (Object.prototype.hasOwnProperty.call(clargs.argv, 'profile') && (clargs.argv.profile.length > 0)) {
       // eslint-disable-next-line import/no-dynamic-require, global-require

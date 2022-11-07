@@ -149,6 +149,11 @@ module.exports = {
       default: '',
       type: 'string',
     })
+    .option('useCache', {
+      description: 'instead of getting externals and internals from the remote repository, use locally cached files (for speed)',
+      type: 'boolean',
+      default: false,
+    })
     .help()
     .alias('help', 'h').argv,
 };
