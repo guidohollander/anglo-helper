@@ -43,6 +43,33 @@ function getComponentName(componentBaseFolder) {
   const bareComponentName = p1[p1.length - 1];
   return { fullComponentName, bareComponentName };
 }
+function catchKeyPress() {
+  readline.emitKeypressEvents(process.stdin);
+  if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
+  process.stdin.on('keypress', (chunk, key) => {
+    if (key && key.name === 'v') {
+      state.profile.verbose = !state.profile.verbose; // toggle
+    }
+    if (key && key.name === 'f') {
+      state.profile.flyway = !state.profile.flyway; // toggle
+    }
+    if (key && key.name === 'u') {
+      state.profile.autoUpdate = !state.profile.autoUpdate; // toggle
+    }
+    if (key && key.name === 's') {
+      state.profile.autoSwitch = !state.profile.autoSwitch; // toggle
+    }
+    if (key && key.name === 'a') { // toggle all
+      state.profile.verbose = !state.profile.autoUpdate;
+      state.profile.autoSwitch = !state.profile.autoUpdate;
+      state.profile.autoUpdate = !state.profile.autoUpdate;
+      state.profile.flyway = !state.profile.autoUpdate;
+    }
+    if (key && key.name === 'x') {
+      process.exit();
+    }
+  });
+}
 function replaceSVNVersion(entry, t) {
   let retval = t;
   const spacer = ' ';
@@ -394,7 +421,7 @@ async function main() {
             const switchPath = state.oSVNInfo.baseURL + entry.path;
             entry.match = (switchPath.toLowerCase() === decodeURI(resultInfo.entry.url).toLowerCase());
             // switch if autoswtich enabled local and remote do not match
-            if (state.profile.autoSwitch && !entry.isInternal) {
+            if (state.profile.autoSwitch && (!entry.isInternal || clargs.argv.select)) {
               await subTaskSwitch.perform(entry);
             } else {
               // [S] not enabled
@@ -578,6 +605,9 @@ async function prequal() {
     isFirstTimeUse = true;
     sequenceNumber = 1;
   }
+
+  catchKeyPress();
+
   // svn context
   state.oSVNInfo = await svn.getSVNContext(state.app, state.workingCopyFolder);
   if (isFirstTimeUse) {
@@ -753,31 +783,6 @@ async function prequal() {
     console.log('Specify jiraUsername / jiraUsername in active profile or as command line argument');
     process.exit(state.exitCode);
   }
-  readline.emitKeypressEvents(process.stdin);
-  if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
-  process.stdin.on('keypress', (chunk, key) => {
-    if (key && key.name === 'v') {
-      state.profile.verbose = !state.profile.verbose; // toggle
-    }
-    if (key && key.name === 'f') {
-      state.profile.flyway = !state.profile.flyway; // toggle
-    }
-    if (key && key.name === 'u') {
-      state.profile.autoUpdate = !state.profile.autoUpdate; // toggle
-    }
-    if (key && key.name === 's') {
-      state.profile.autoSwitch = !state.profile.autoSwitch; // toggle
-    }
-    if (key && key.name === 'a') { // toggle all
-      state.profile.verbose = !state.profile.autoUpdate;
-      state.profile.autoSwitch = !state.profile.autoUpdate;
-      state.profile.autoUpdate = !state.profile.autoUpdate;
-      state.profile.flyway = !state.profile.autoUpdate;
-    }
-    if (key && key.name === 'x') {
-      process.exit();
-    }
-  });
 }
 clear();
 prequal();
