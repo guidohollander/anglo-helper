@@ -44,31 +44,36 @@ function getComponentName(componentBaseFolder) {
   return { fullComponentName, bareComponentName };
 }
 function catchKeyPress() {
-  readline.emitKeypressEvents(process.stdin);
-  if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
-  process.stdin.on('keypress', (chunk, key) => {
-    if (key && key.name === 'v') {
-      state.profile.verbose = !state.profile.verbose; // toggle
-    }
-    if (key && key.name === 'f') {
-      state.profile.flyway = !state.profile.flyway; // toggle
-    }
-    if (key && key.name === 'u') {
-      state.profile.autoUpdate = !state.profile.autoUpdate; // toggle
-    }
-    if (key && key.name === 's') {
-      state.profile.autoSwitch = !state.profile.autoSwitch; // toggle
-    }
-    if (key && key.name === 'a') { // toggle all
-      state.profile.verbose = !state.profile.autoUpdate;
-      state.profile.autoSwitch = !state.profile.autoUpdate;
-      state.profile.autoUpdate = !state.profile.autoUpdate;
-      state.profile.flyway = !state.profile.autoUpdate;
-    }
-    if (key && key.name === 'x') {
-      process.exit();
-    }
-  });
+  if (state.entryOperation) { // only allow during regular, long-running entry (component / project) based operations
+    readline.emitKeypressEvents(process.stdin);
+    if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
+    process.stdin.on('keypress', (chunk, key) => {
+      if (key && key.name === 'v') {
+        state.profile.verbose = !state.profile.verbose; // toggle
+      }
+      if (key && key.name === 'f') {
+        state.profile.flyway = !state.profile.flyway; // toggle
+      }
+      if (key && key.name === 'u') {
+        state.profile.autoUpdate = !state.profile.autoUpdate; // toggle
+      }
+      if (key && key.name === 's') {
+        state.profile.autoSwitch = !state.profile.autoSwitch; // toggle
+      }
+      if (key.ctrl && key.name === 'c') {
+        process.exit();
+      }
+      if (key && key.name === 'a') { // toggle all
+        const toggle = !state.profile.autoUpdate;
+        state.profile.autoSwitch = toggle; // [S]
+        state.profile.autoUpdate = toggle; // [U]
+        state.profile.flyway = toggle; // [F]
+      }
+      if (key && key.name === 'x') {
+        process.exit();
+      }
+    });
+}
 }
 function replaceSVNVersion(entry, t) {
   let retval = t;
@@ -77,12 +82,12 @@ function replaceSVNVersion(entry, t) {
     // const prefix = entry.isInternal ? '[i] ' : '[x] ';
     // retval = prefix.concat(t);
     retval = retval.split('/');
-    if (retval.length > 1) {
-      retval[0] = retval[0];
-      retval[1] = spacer.repeat(6 - retval[1].length);
-    }
+    // if (retval.length > 1) {
+    //   retval[0] = retval[0];
+    //   retval[1] = spacer.repeat(6 - retval[1].length);
+    // }
     retval = retval.join('/');
-    return retval.replace('tags/', '🏷 '.replace('trunk', '🪵 ')).replace('branches/', '⎇ ');
+    return retval.replace('tags/', '🏷/'.replace('trunk', '🪵 ')).replace('branches/', 'b/');
   }
   return retval;
 }
@@ -155,6 +160,8 @@ async function main() {
       state.profile.autoSwitch = true;
       state.profile.autoUpdate = true;
     }
+    state.entryOperation = !clargs.argv.componentToTrunk && !clargs.argv.componentToTag
+
     // gather information about current solution for the tag report
     state.currentSolution = arrSolutions.find((s) => s.name === state.oSVNInfo.svnApp);
     state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionFrom);
@@ -168,7 +175,7 @@ async function main() {
       const fn = `${state.workingCopyFolder}cached_externals_raw.json`;
       if (!fs.existsSync(fn)) {
         state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
-        fs.writeFileSync(fn, JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));        
+        fs.writeFileSync(fn, JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
       } else {
         // eslint-disable-next-line import/no-dynamic-require, global-require
         state.arrSVNExternalsCurrentSolutionTag = require(fn);
@@ -245,7 +252,7 @@ async function main() {
       fs.writeFileSync('./externals.json', JSON.stringify(arrExternals, null, 2));
     }
     // get internals
-    let lsInternals
+    let lsInternals;
     if (clargs.argv.useCache) {
       const fn = `${state.workingCopyFolder}cached_internals_raw.json`;
       if (!fs.existsSync(fn)) {
@@ -404,7 +411,7 @@ async function main() {
           // consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
           // consoleLog.logThisLine(` ${spacer.repeat(130 - lengthLongestProjectName - entry.key.length)}`, 'gray');
           consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
-          consoleLog.logThisLine(` ${spacer.repeat(150 - lengthLongestProjectName - entry.key.concat(getSvnInfo(entry)).length)}${getSvnInfo(entry)}> `, 'gray');
+          consoleLog.logThisLine(` ${spacer.repeat(150 - lengthLongestProjectName - entry.key.concat(getSvnInfo(entry)).length - 1)}${getSvnInfo(entry)}> `, 'gray');
           dir = anglo.unifyPath(state.workingCopyFolder) + entry.key;
           const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(entry.key);
           if (fs.existsSync(dir)) {
@@ -488,7 +495,7 @@ async function main() {
       // to update all externals to the newly created tags
       await subTaskTagReportExecution.batchUpdateExternals();
     }
-    const SummaryCount = (state.arrMissingCollection.length + state.arrSwitchUpdateCollection.length + state.arrSVNUpdatedCollection.length + state.arrFlywayUpdatedCollection.length + state.arrCompareSpecificUpdateCollection.length + state.arrSVNPotentialUpdateCollection.length + state.arrDeploymentCheckCollection.length + state.arrTagReportCollection.length);
+    const SummaryCount = (state.arrMissingCollection.length + state.arrSwitchUpdateCollection.length + state.arrSVNUpdatedCollection.length + state.arrFlywayUpdatedCollection.length + state.arrCompareSpecificUpdateCollection.length + state.arrSVNPotentialUpdateCollection.length + state.arrDeploymentCheckCollection.length + state.arrTagReportCollection.length + state.arrUnlinkedFolderCollection.length);
     if (SummaryCount > 0) {
       state.exitCode = 1;
       consoleLog.logNewLine('', 'gray');
@@ -539,6 +546,13 @@ async function main() {
     }
     if (state.arrDeploymentCheckCollection.length > 0) {
       consoleLog.logNewLine(`${state.arrDeploymentCheckCollection.length} project for which the [D]eployment check failed. Tag the relevant externals projects.`, 'red');
+    }
+    // eslint-disable-next-line no-restricted-syntax
+    for (const entry of state.arrUnlinkedFolderCollection) {
+      consoleLog.logNewLine(`[D]eleted folder caused by SVN [S]witch error: ${entry}`, 'green');
+    }
+    if (state.arrUnlinkedFolderCollection.length > 0) {
+      consoleLog.logNewLine(`${state.arrUnlinkedFolderCollection.length} [D]eleted folders caused by SVN [S]witch error. Run anglo-helper --keepUp to add missing project(s)`, 'red');
     }
     if (state.arrDeploymentCheckCollection.length === 0 && clargs.argv.deploymentCheck) {
       consoleLog.logNewLine('Deployment check positive: all externals have been tagged.', 'green');

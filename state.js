@@ -16,6 +16,7 @@ module.exports = {
   arrCompareSpecificUpdateCollection: [],
   arrDeploymentCheckCollection: [],
   arrTagReportCollection: [],
+  arrUnlinkedFolderCollection: [],
   bDone: false,
   profile: {},
   oAppContext: {},
@@ -29,4 +30,5 @@ module.exports = {
   beInformedRunning: false,
   timestampStart: '', // new Date().toISOString().replaceAll('T', '').replaceAll('-', '').replaceAll(':', '').substring(0, 14)
   exitCode: 0,
+  entryBasedOperation: true,
 };

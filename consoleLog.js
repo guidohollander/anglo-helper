@@ -78,7 +78,7 @@ function showLegend() {
     s = '';
   s = '[X]: no action needed';
   logNewLine(giveMoreSpace(l, sp) + s, 'white');
-  s = '[X]: potential action need';
+  s = '[X]: potential action needed';
   logNewLine(giveMoreSpace(l, sp) + s, 'yellow');
   s = '[X]: action performed';
   logNewLine(giveMoreSpace(l, sp) + s, 'green');

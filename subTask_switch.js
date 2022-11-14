@@ -1,4 +1,6 @@
+const fs = require('fs');
 const anglo = require('./anglo');
+const clargs = require('./arguments');
 const consoleLog = require('./consoleLog');
 const state = require('./state');
 const promises = require('./promises');
@@ -15,6 +17,11 @@ async function perform(componentEntry) {
         anglo.memorable('[S]', state.arrSwitchUpdateCollection, componentEntry, switched, 'green');
       } catch (error) {
         consoleLog.logThisLine('[Š] Errors while switching', 'red');
+        if (clargs.argv.allowUnlink) {
+          fs.unlink(componentEntry.local_path, ((err) => {
+            if (!err) { anglo.memorable('[D]', state.arrUnlinkedFolderCollection, componentEntry, state.oSVNInfo.baseURL + componentEntry.path.replace(/^\//, '').key, 'green'); }
+          }));
+        }
       }
     } else {
       // no switch necessary

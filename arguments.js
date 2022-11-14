@@ -120,7 +120,6 @@ module.exports = {
     })
     .option('startProject', {
       description: 'take action from this project and beyond',
-      default: '1', // defausomething that is alphabetically before anything else
       type: 'string',
     })
     .option('svnOptionsUsername', {
@@ -153,6 +152,11 @@ module.exports = {
       description: 'instead of getting externals and internals from the remote repository, use locally cached files (for speed)',
       type: 'boolean',
       default: false,
+    })
+    .option('allowUnlink', {
+      description: 'When svn switch throws errors, deleted the project so it will be recognized as [M]issing project on the next run.',
+      type: 'boolean',
+      default: true,
     })
     .help()
     .alias('help', 'h').argv,
