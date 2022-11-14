@@ -44,7 +44,7 @@ function getComponentName(componentBaseFolder) {
   return { fullComponentName, bareComponentName };
 }
 function catchKeyPress() {
-  if (state.entryOperation) { // only allow during regular, long-running entry (component / project) based operations
+  if (!clargs.argv.componentToTrunk && !clargs.argv.componentToTag) { // only allow during regular, long-running entry (component / project) based operations
     readline.emitKeypressEvents(process.stdin);
     if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
     process.stdin.on('keypress', (chunk, key) => {
@@ -160,7 +160,6 @@ async function main() {
       state.profile.autoSwitch = true;
       state.profile.autoUpdate = true;
     }
-    state.entryOperation = !clargs.argv.componentToTrunk && !clargs.argv.componentToTag
 
     // gather information about current solution for the tag report
     state.currentSolution = arrSolutions.find((s) => s.name === state.oSVNInfo.svnApp);
