@@ -120,6 +120,7 @@ module.exports = {
     })
     .option('startProject', {
       description: 'take action from this project and beyond',
+      default: '1', // defausomething that is alphabetically before anything else
       type: 'string',
     })
     .option('svnOptionsUsername', {
