@@ -8,7 +8,10 @@ const svn = require('./svn');
 async function perform(componentEntry) {
   const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(componentEntry.key);
   if (!state.beInformedRunning) {
-    await promises.svnCleanUpPromise(dirWithQuotedProjectName, svn.svnOptions);
+    const cloneSvnOptions = JSON.parse(JSON.stringify(svn.svnOptions));
+    cloneSvnOptions.includeExternal = true;
+    cloneSvnOptions.vacuumPristines = true;
+    // await promises.svnCleanUpPromise(dirWithQuotedProjectName, cloneSvnOptions);
     const updated = await promises.svnUpdatePromise(dirWithQuotedProjectName, svn.svnOptions);
     if (updated.includes('Updated to revision')) {
       if (state.profile.verbose) {

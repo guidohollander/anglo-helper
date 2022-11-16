@@ -44,7 +44,7 @@ function getComponentName(componentBaseFolder) {
   return { fullComponentName, bareComponentName };
 }
 function catchKeyPress() {
-  if (!clargs.argv.componentToTrunk && !clargs.argv.componentToTag) { // only allow during regular, long-running entry (component / project) based operations
+  if (!clargs.argv.componentToTrunk && !clargs.argv.componentToTag && !clargs.argv.select) { // only allow during regular, long-running entry (component / project) based operations
     readline.emitKeypressEvents(process.stdin);
     if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
     process.stdin.on('keypress', (chunk, key) => {
@@ -378,8 +378,10 @@ async function main() {
     if (state.profile.autoSwitch && !state.beInformedRunning) { actions.push('   [S]witch'); }
     if (state.profile.autoUpdate && state.beInformedRunning) { actions.push('   [Ŭ]pdate detection'); }
     if (state.profile.autoUpdate && !state.beInformedRunning) { actions.push('   [U]pdate'); }
-    if (state.profile.flyway && !clargs.argv.flywayValidateOnly) { actions.push('   [F]lyway'); }
-    if (state.profile.flyway && clargs.argv.flywayValidateOnly) { actions.push('   [F]lyway validate only'); }
+    if (state.profile.flyway && !clargs.argv.flywayValidateOnly && !state.profile.flywayReplaceVariables) { actions.push('   [F]lyway'); }
+    if (state.profile.flyway && clargs.argv.flywayValidateOnly && !state.profile.flywayReplaceVariables) { actions.push('   [F]lyway validate only'); }
+    if (state.profile.flyway && !clargs.argv.flywayValidateOnly && state.profile.flywayReplaceVariables) { actions.push('   [F]lyway (+vr)'); }
+    if (state.profile.flyway && clargs.argv.flywayValidateOnly && state.profile.flywayReplaceVariables) { actions.push('   [F]lyway validate only (+vr)'); }
     if (state.profile.compareSpecific) { actions.push('   [C]ompare specific'); }
     if (clargs.argv.deploymentCheck) { actions.push('   [D]eployment check'); }
     if (clargs.argv.tagReport) { actions.push('   [T]ag report'); }
@@ -410,7 +412,7 @@ async function main() {
           // consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
           // consoleLog.logThisLine(` ${spacer.repeat(130 - lengthLongestProjectName - entry.key.length)}`, 'gray');
           consoleLog.logThisLine(`${consoleLog.getProgressString(progressCounter, arrAll.length)} ${entry.key}`, 'gray');
-          consoleLog.logThisLine(` ${spacer.repeat(150 - lengthLongestProjectName - entry.key.concat(getSvnInfo(entry)).length - 1)}${getSvnInfo(entry)}> `, 'gray');
+          consoleLog.logThisLine(` ${spacer.repeat(140 - lengthLongestProjectName - entry.key.concat(getSvnInfo(entry)).length - 1)}${getSvnInfo(entry)}> `, 'gray');
           dir = anglo.unifyPath(state.workingCopyFolder) + entry.key;
           const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(entry.key);
           if (fs.existsSync(dir)) {

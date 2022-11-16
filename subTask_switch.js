@@ -11,7 +11,10 @@ async function perform(componentEntry) {
   const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(componentEntry.key);
   if (!state.beInformedRunning) {
     if (!componentEntry.match) {
-      await promises.svnCleanUpPromise(dirWithQuotedProjectName, svn.svnOptions);
+      const cloneSvnOptions = JSON.parse(JSON.stringify(svn.svnOptions));
+      cloneSvnOptions.includeExternal = true;
+      cloneSvnOptions.vacuumPristines = true;
+      // await promises.svnCleanUpPromise(dirWithQuotedProjectName, cloneSvnOptions);
       try {
         const switched = await promises.svnSwitchPromise(JSON.stringify(switchPath), dirWithQuotedProjectName, svn.svnOptions);
         anglo.memorable('[S]', state.arrSwitchUpdateCollection, componentEntry, switched, 'green');

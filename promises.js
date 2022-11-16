@@ -10,6 +10,7 @@ module.exports = {
   svnSwitchPromise: util.promisify(svnUltimate.commands.switch),
   svnCleanUpPromise: util.promisify(svnUltimate.commands.cleanup),
   svnUpdatePromise: util.promisify(svnUltimate.commands.update),
+  svnRevertPromise: util.promisify(svnUltimate.commands.revert),
   svnStatusPromise: util.promisify(svnUltimate.commands.status),
   svnMergePromise: util.promisify(svnUltimate.commands.merge),
   svnLogPromise: util.promisify(svnUltimate.commands.log),

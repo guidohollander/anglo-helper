@@ -40,7 +40,7 @@ function getProbableApp() {
     probableApp = 'mts';
   } else {
     consoleLog.logNewLine('App could not be determined automatically. Please provide an --app as argument.', 'gray');
-    process.exit();
+    process.exit(0);
   }
   return {
     app: probableApp,
