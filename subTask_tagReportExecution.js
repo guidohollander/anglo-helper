@@ -1,5 +1,4 @@
 /* eslint-disable no-restricted-syntax */
-const beep = require('node-beep');
 const clargs = require('./arguments');
 const componentToTrunk = require('./subTask_componentToTrunk');
 const consoleLog = require('./consoleLog');
@@ -43,7 +42,7 @@ async function perform(componentEntry) {
             await util.execShellCommand(svnCopyCommand);
           } catch (error) {
             consoleLog.logNewLine(`Errors while executing execShellCommand(tag): ${svnCopyCommand}`, 'red');
-            beep(3);
+            util.beep(3);
           }
         }
       } else {
@@ -72,7 +71,7 @@ async function perform(componentEntry) {
           await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionSolutionData.solutionTagName, false);
         } catch (error) {
           consoleLog.logNewLine(`Errors while executing addVersionIfNotExists: ${jiraProject} ${tagReportExecutionSolutionData.solutionTagName}`, 'gray');
-          beep(3);
+          util.beep(3);
         }
       }
       jiraProjectCounter += 1;
@@ -93,7 +92,7 @@ async function perform(componentEntry) {
           await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionSolutionData.solutionTagName);
         } catch (error) {
           consoleLog.logNewLine(`Errors while executing updateJiraIssueFixVersion: ${jiraIssue.jiraIssueNumber} ${tagReportExecutionSolutionData.solutionTagName}`, 'gray');
-          beep(3);
+          util.beep(3);
         }
       }
       jiraIssueCounter += 1;
@@ -124,7 +123,7 @@ async function perform(componentEntry) {
               await util.execShellCommand(svnCopyCommand);
             } catch (error) {
               consoleLog.logNewLine(`Errors while executing execShellCommand(tag): ${svnCopyCommand}`, 'gray');
-              beep(3);
+              util.beep(3);
             }
           }
           // if (bComponentSwitchExternalsEnabled) {
@@ -135,7 +134,7 @@ async function perform(componentEntry) {
           //     await componentToTrunk.perform(componentEntry, from, to);
           //   } catch (error) {
           //     consoleLog.logNewLine(`Errors while executing execShellCommand(tag): ${svnCopyCommand}`, 'gray');
-          //     beep(3);
+          //     util.beep(3);
           //   }
           // }
         } else {
@@ -162,7 +161,7 @@ async function perform(componentEntry) {
             await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionComponentData.componentTagName, true);
           } catch (error) {
             consoleLog.logNewLine(`Errors while executing addVersionIfNotExists: ${jiraProject}${tagReportExecutionComponentData.componentTagName}`, 'gray');
-            beep(3);
+            util.beep(3);
           }
         }
         jiraProjectCounter += 1;
@@ -179,7 +178,7 @@ async function perform(componentEntry) {
             await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionComponentData.componentTagName);
           } catch (error) {
             consoleLog.logNewLine(`Errors while executing updateJiraIssueFixVersion: ${jiraIssue.jiraIssueNumber} ${tagReportExecutionComponentData.componentTagName}`, 'gray');
-            beep(3);
+            util.beep(3);
           }
         }
         jiraIssueCounter += 1;
@@ -204,7 +203,7 @@ async function batchUpdateExternals() {
     // eslint-disable-next-line no-param-reassign
   } catch (error) {
     consoleLog.logNewLine('Errors while executing batchUpdateExternals');
-    beep(3);
+    util.beep(3);
   }
 }
 

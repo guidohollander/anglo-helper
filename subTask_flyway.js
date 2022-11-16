@@ -1,5 +1,4 @@
 /* eslint-disable no-console */
-const beep = require('node-beep');
 const { dirname } = require('path');
 const fs = require('fs');
 const path = require('path');
@@ -21,7 +20,7 @@ async function updateVariablesInSqlFiles(componentEntry, location) {
       await util.execShellCommand(execCommand);
     } catch (error) {
       console.dir('Errors while executing updating variables in flyway sql files: ', location);
-      beep(3);
+      util.beep(3);
       process.exit(1);
     }
   } else {
@@ -126,7 +125,7 @@ async function perform(componentEntry) {
       }
       await revertChanges(FlywayDirWithQuotedProjectName);
     } else {
-      consoleLog.logNewLine(`[F] skipped - uncommitted changes found`, 'red'); 
+      consoleLog.logNewLine(`[F] skipped - uncommitted changes found`, 'red');
     }
   } else {
     // flyway enabled, but no continuous delivery folder

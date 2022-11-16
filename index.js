@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 const clear = require('clear');
 const fs = require('fs');
-const beep = require('node-beep');
 const inquirer = require('inquirer');
 const readline = require('readline');
 
@@ -480,7 +479,7 @@ async function main() {
             } catch (error) {
               // eslint-disable-next-line no-console
               console.dir('Errors while executing:', execCommand);// chalk.redBright(
-              beep(3);
+              util.beep(3);
             }
           }
           consoleLog.logNewLine('', 'gray');
@@ -502,7 +501,7 @@ async function main() {
       consoleLog.logNewLine('', 'gray');
       // eslint-disable-next-line no-console
       console.log('Summary:', SummaryCount.toString().trim(), `(potential) updates for ${state.app}`);
-      beep(2);
+      util.beep(2);
     } else {
       consoleLog.logNewLine('', 'gray');
       consoleLog.logNewLine('Summary: ', 'gray');
@@ -599,7 +598,7 @@ async function main() {
       } catch (error) {
         // eslint-disable-next-line no-console
         console.dir('Errors while exporting to excel. Is file closed?');
-        beep(3);
+        util.beep(3);
       }
     }
     consoleLog.showBIRunningWarning(state.beInformedRunning);
@@ -607,7 +606,7 @@ async function main() {
     // console.log(error)
     // eslint-disable-next-line no-console
     console.log('Errors occurred:', error);// chalk.redBright(
-    beep(3);
+    util.beep(3);
   }
   process.stdout.write('\n');
 
@@ -763,7 +762,7 @@ async function prequal() {
         } else {
           // eslint-disable-next-line no-console
           console.log('Unable to access database');
-          beep(3);
+          util.beep(3);
           process.exit(state.exitCode);
         }
       })

@@ -4,6 +4,10 @@ const axios = require('axios');
 const semver = require('semver');
 const pjson = require('./package.json');
 
+function beep(q) {
+  //
+}
+
 function execShellCommand(cmd) {
   return new Promise((resolve) => {
     exec(cmd, (error, stdout, stderr) => {
@@ -37,4 +41,5 @@ async function getAppUpdateInfo() {
 module.exports = {
   execShellCommand,
   getAppUpdateInfo,
+  beep,
 };

@@ -1,9 +1,9 @@
-const beep = require('node-beep');
 const anglo = require('./anglo');
 const consoleLog = require('./consoleLog');
 const state = require('./state');
 const promises = require('./promises');
 const svn = require('./svn');
+const util = require('./util');
 
 async function perform(componentEntry) {
   const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(componentEntry.key);
@@ -27,7 +27,7 @@ async function perform(componentEntry) {
     if (updated.includes('Summary of conflicts')) {
       if (state.profile.verbose) {
         consoleLog.logNewLine(`[U] conflict detected, Resolve conflict(s) first: ${updated}`, 'gray'); // chalk.red(
-        beep(3);
+        util.beep(3);
         process.exit();
       }
     }

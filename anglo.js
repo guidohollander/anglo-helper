@@ -3,10 +3,11 @@ const clargs = require('./arguments');
 const consoleLog = require('./consoleLog');
 const promises = require('./promises');
 const state = require('./state');
+const util = require('./util');
 
 function alertTerminal(mode) {
   if ((mode === 'F') || (mode.includes('U')) || (mode.includes('S')) || (mode === 'C')) {
-    // beep(1);
+    // util.beep(3);
   }
 }
 function determineProbableAngloApp(angloPath) {
