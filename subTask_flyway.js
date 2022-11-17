@@ -12,22 +12,32 @@ const util = require('./util');
 
 async function updateVariablesInSqlFiles(componentEntry, location) {
   const migrationsDestination = location.replace('filesystem:', '');
-  if (fs.existsSync(migrationsDestination)) {
-    try {
-      const appDir = dirname(require.main.filename);
-      const normalizePathToMergeScript = path.normalize(`${appDir}\\merge.ps1`);
-      const execCommand = `powershell.exe -file "${normalizePathToMergeScript}" "${state.workingCopyFolder + state.profile.flywayReplaceVariablesPropFile}" "${migrationsDestination}"`;
-      if (clargs.argv.debug) {
-        console.log('command:', execCommand);
+  if (state.profile.flywayReplaceVariables) {
+    if (state.workingCopyFolder + state.profile.flywayReplaceVariablesPropFile) {
+      if (fs.existsSync(state.workingCopyFolder + state.profile.flywayReplaceVariablesPropFile)) {
+        if (fs.existsSync(migrationsDestination)) {
+          try {
+            const appDir = dirname(require.main.filename);
+            const normalizePathToMergeScript = path.normalize(`${appDir}\\merge.ps1`);
+            const execCommand = `powershell.exe -file "${normalizePathToMergeScript}" "${state.workingCopyFolder + state.profile.flywayReplaceVariablesPropFile}" "${migrationsDestination}"`;
+            if (clargs.argv.debug) {
+              console.log('command:', execCommand);
+            }
+            await util.execShellCommand(execCommand);
+          } catch (error) {
+            console.dir('Errors while executing updating variables in flyway sql files: ', location);
+            util.beep(3);
+            process.exit(1);
+          }
+        } else {
+          console.log('migrationsDestination does not exist');
+        }
+      } else {
+        console.log('flywayVariableReplacementPropFile does not exist');
       }
-      await util.execShellCommand(execCommand);
-    } catch (error) {
-      console.dir('Errors while executing updating variables in flyway sql files: ', location);
-      util.beep(3);
-      process.exit(1);
+    } else {
+      console.log('flywayVariableReplacementPropFile not set in profile!');
     }
-  } else {
-    console.log('migrationsDestination does not exist');
   }
 }
 

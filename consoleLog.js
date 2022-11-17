@@ -110,7 +110,7 @@ async function showHeader() {
   const appUpdateInfo = await util.getAppUpdateInfo();
   logThisLine(`${s}:${giveSpace(s, sp)}${embrace(state.oAppContext.version)}`, 'cyan');
   if (appUpdateInfo.updateAvailable) {
-    logThisLine(`new version ${appUpdateInfo.remoteVersion} available`, 'red');
+    logThisLine(` new version ${appUpdateInfo.remoteVersion} available`, 'red');
   } else {
     logThisLine(' @latest', 'green');
   }

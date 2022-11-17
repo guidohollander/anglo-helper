@@ -379,9 +379,9 @@ async function main() {
     if (state.profile.autoUpdate && state.beInformedRunning) { actions.push('   [Ŭ]pdate detection'); }
     if (state.profile.autoUpdate && !state.beInformedRunning) { actions.push('   [U]pdate'); }
     if (state.profile.flyway && !(clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && !state.profile.flywayReplaceVariables) { actions.push('   [F]lyway'); }
-    if (state.profile.flyway && (clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && !state.profile.flywayReplaceVariables) { actions.push('   [F]lyway validate/repair only'); }
+    if (state.profile.flyway && (clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && !state.profile.flywayReplaceVariables) { actions.push('   [F]lyway val/rep only'); }
     if (state.profile.flyway && !(clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && state.profile.flywayReplaceVariables) { actions.push('   [F]lyway (+vr)'); }
-    if (state.profile.flyway && (clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && state.profile.flywayReplaceVariables) { actions.push('   [F]lyway validate/repair only (+vr)'); }
+    if (state.profile.flyway && (clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && state.profile.flywayReplaceVariables) { actions.push('   [F]lyway val/rep only (+vr)'); }
     if (state.profile.compareSpecific) { actions.push('   [C]ompare specific'); }
     if (clargs.argv.deploymentCheck) { actions.push('   [D]eployment check'); }
     if (clargs.argv.tagReport) { actions.push('   [T]ag report'); }
