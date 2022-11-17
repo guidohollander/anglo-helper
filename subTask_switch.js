@@ -14,7 +14,7 @@ async function perform(componentEntry) {
       const cloneSvnOptions = JSON.parse(JSON.stringify(svn.svnOptions));
       cloneSvnOptions.includeExternal = true;
       cloneSvnOptions.vacuumPristines = true;
-      // await promises.svnCleanUpPromise(dirWithQuotedProjectName, cloneSvnOptions);
+      await promises.svnCleanUpPromise(dirWithQuotedProjectName, cloneSvnOptions);
       try {
         const switched = await promises.svnSwitchPromise(JSON.stringify(switchPath), dirWithQuotedProjectName, svn.svnOptions);
         anglo.memorable('[S]', state.arrSwitchUpdateCollection, componentEntry, switched, 'green');
