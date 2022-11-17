@@ -1,6 +1,5 @@
 $propertiesFileLocation = $args[0]
 $migrationsDestination = $args[1]
-$propertiesFileLocation = 'C:\repo\mts_bdsu\Development related\Properties\application_propertiesKris.properties'
 $properties = Get-Content $propertiesFileLocation
 $key_value_map = ConvertFrom-StringData($properties -join [Environment]::NewLine)
 $subFolders = Get-ChildItem -Path $migrationsDestination -Directory
