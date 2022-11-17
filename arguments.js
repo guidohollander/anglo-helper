@@ -85,7 +85,7 @@ module.exports = {
     })
     .option('flyway', {
       alias: 'f',
-      description: 'enable flyway, also when not enabled in profile. Profile must contain flyway configuration to have effect.',
+      description: 'enable flyway, also when not enabled in profile. Profile must contain flyway configuration to have effect',
       type: 'boolean',
     })
     .option('flywayValidateOnly', {
@@ -93,24 +93,24 @@ module.exports = {
       type: 'boolean',
     })
     .option('compare', {
-      description: 'enable specific compare, also when not enabled in profile. Profile must contain compare configuration to have effect.',
+      description: 'enable specific compare, also when not enabled in profile. Profile must contain compare configuration to have effect',
       type: 'boolean',
     })
     .option('verbose', {
       alias: 'v',
-      description: 'enable verbose, also when not enabled in profile.',
+      description: 'enable verbose, also when not enabled in profile',
       type: 'boolean',
     })
     .option('keepUp', {
-      description: 'update potential updates from the last run .',
+      description: 'update potential updates from the last run',
       type: 'boolean',
     })
     .option('generateFlywaywBatch', {
-      description: 'for every core component, generate an .anglo-helper folder with a af_fw.bat file.',
+      description: 'for every core component, generate an .anglo-helper folder with a af_fw.bat file',
       type: 'boolean',
     })
     .option('component', {
-      description: "limit the set of components to (partly) match the specified string (case insensitive), i.e. --component '_CONTINUOUS_DELIVERY' or --component 'assessment'.",
+      description: "limit the set of components to (partly) match the specified string (case insensitive), i.e. --component '_CONTINUOUS_DELIVERY' or --component 'assessment'",
       type: 'string',
     })
     .option('startRow', {
@@ -155,9 +155,14 @@ module.exports = {
       default: false,
     })
     .option('allowUnlink', {
-      description: 'When svn switch throws errors, deleted the project so it will be recognized as [M]issing project on the next run.',
+      description: 'When svn switch throws errors, deleted the project so it will be recognized as [M]issing project on the next run',
       type: 'boolean',
       default: true,
+    })
+    .option('debug', {
+      description: 'Output debug information',
+      type: 'boolean',
+      default: false,
     })
     .help()
     .alias('help', 'h').argv,

@@ -7,4 +7,4 @@ node_modules/
 /*.xlsx
 roadmap.txt
 fw.bat
-*.ps1
+publish_*.ps1
