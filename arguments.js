@@ -3,6 +3,7 @@ const arrSolutions = require('./solutions.json');
 
 module.exports = {
   argv: yargs
+    .strict()
     .option('app', {
       describe: 'choose an app',
       choices: ['mbs', 'mts'],
