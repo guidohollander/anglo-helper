@@ -72,11 +72,11 @@ function catchKeyPress() {
         process.exit();
       }
     });
-}
+  }
 }
 function replaceSVNVersion(entry, t) {
   let retval = t;
-  const spacer = ' ';
+  // const spacer = ' ';
   if (state.profile.supportUnicodeChars) {
     // const prefix = entry.isInternal ? '[i] ' : '[x] ';
     // retval = prefix.concat(t);
@@ -140,7 +140,7 @@ async function main() {
       state.profile.compareSpecific = false;
       state.profile.flyway = clargs.argv.flyway;
     }
-    if (clargs.argv.flywayValidateOnly) state.profile.verbose = clargs.argv.flywayValidateOnly;
+    if (clargs.argv.flywayValidateOnly || clargs.argv.flywayValidateOnly) state.profile.verbose = true;
     if (clargs.argv.compare && state.profile.compareSpecificRootFolder) {
       state.profile.compareSpecific = clargs.argv.compare;
       state.profile.autoSwitch = false;
@@ -257,6 +257,7 @@ async function main() {
         lsInternals = await promises.svnListPromise(state.oSolution.current.tagUrl);
         fs.writeFileSync(fn, JSON.stringify(lsInternals, null, 2));
       } else {
+        // eslint-disable-next-line global-require, import/no-dynamic-require
         lsInternals = require(fn);
       }
     } else {
@@ -377,10 +378,10 @@ async function main() {
     if (state.profile.autoSwitch && !state.beInformedRunning) { actions.push('   [S]witch'); }
     if (state.profile.autoUpdate && state.beInformedRunning) { actions.push('   [Ŭ]pdate detection'); }
     if (state.profile.autoUpdate && !state.beInformedRunning) { actions.push('   [U]pdate'); }
-    if (state.profile.flyway && !clargs.argv.flywayValidateOnly && !state.profile.flywayReplaceVariables) { actions.push('   [F]lyway'); }
-    if (state.profile.flyway && clargs.argv.flywayValidateOnly && !state.profile.flywayReplaceVariables) { actions.push('   [F]lyway validate only'); }
-    if (state.profile.flyway && !clargs.argv.flywayValidateOnly && state.profile.flywayReplaceVariables) { actions.push('   [F]lyway (+vr)'); }
-    if (state.profile.flyway && clargs.argv.flywayValidateOnly && state.profile.flywayReplaceVariables) { actions.push('   [F]lyway validate only (+vr)'); }
+    if (state.profile.flyway && !(clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && !state.profile.flywayReplaceVariables) { actions.push('   [F]lyway'); }
+    if (state.profile.flyway && (clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && !state.profile.flywayReplaceVariables) { actions.push('   [F]lyway validate/repair only'); }
+    if (state.profile.flyway && !(clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && state.profile.flywayReplaceVariables) { actions.push('   [F]lyway (+vr)'); }
+    if (state.profile.flyway && (clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && state.profile.flywayReplaceVariables) { actions.push('   [F]lyway validate/repair only (+vr)'); }
     if (state.profile.compareSpecific) { actions.push('   [C]ompare specific'); }
     if (clargs.argv.deploymentCheck) { actions.push('   [D]eployment check'); }
     if (clargs.argv.tagReport) { actions.push('   [T]ag report'); }

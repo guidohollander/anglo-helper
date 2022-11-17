@@ -89,7 +89,11 @@ module.exports = {
       type: 'boolean',
     })
     .option('flywayValidateOnly', {
-      description: 'instead of migrate, use validate actions. This will list any validation lines. This automatically enables verbose',
+      description: 'instead of migrate, use validate. This will list any validation lines. This automatically enables verbose',
+      type: 'boolean',
+    })
+    .option('flywayRepairOnly', {
+      description: 'instead of migrate, use repair. This automatically enables verbose',
       type: 'boolean',
     })
     .option('compare', {

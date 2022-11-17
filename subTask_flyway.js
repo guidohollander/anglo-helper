@@ -78,8 +78,9 @@ async function perform(componentEntry) {
   let flywayAction = 'migrate';
   const dir = anglo.unifyPath(state.workingCopyFolder) + componentEntry.key;
   const dirWithQuotedProjectName = anglo.unifyPath(state.workingCopyFolder) + JSON.stringify(componentEntry.key);
-  // override default when command line option flywayValidateOnly is set
+  // override default when command line option flywayValidateOnly or flywayRepairOnly is set
   if (clargs.argv.flywayValidateOnly) flywayAction = 'validate'; // instead of migrate
+  if (clargs.argv.flywayRepairOnly) flywayAction = 'repair'; // instead of migrate
   const flywayDatabaseTable = '__MigrationsHistory';
   const flywayDatabaseSchema = 'migrations';
   if (componentEntry.componentContinuousDeliveryFolderFound || componentEntry.generalContinuousDeliveryFolderFound) {
@@ -128,7 +129,7 @@ async function perform(componentEntry) {
       }
       await revertChanges(FlywayDirWithQuotedProjectName);
     } else {
-      consoleLog.logNewLine(`[F] skipped - uncommitted changes found`, 'red');
+      consoleLog.logNewLine('[F] skipped - uncommitted changes found', 'red');
     }
   } else {
     // flyway enabled, but no continuous delivery folder
