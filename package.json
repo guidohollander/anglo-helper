@@ -11,6 +11,7 @@
   "author": "Guido Hollander",
   "license": "ISC",
   "dependencies": {
+    "await-spawn": "^4.0.2",
     "axios": "^0.27.2",
     "clear": "^0.1.0",
     "glob": "^8.0.3",

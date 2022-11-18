@@ -4,10 +4,9 @@ Anglo helper is a command line interface (CLI) that will assist with SVN switche
 
 ## Requirements
 
-* [Node.js](https://nodejs.org/dist/v16.17.0/node-v16.17.0-x64.msi) LTS 16.17.0 (including NPM 8.15.0). Make sure that you check the 'Automatically install the necessary tools', such as Python and VSC++/ VS Build tools as well.
+* [Node.js](https://nodejs.org/dist/v16.17.0/node-v16.17.0-x64.msi) LTS 16.17.0 (including NPM 8.15.0).
 * [NVM](https://4geeks.com/how-to/nvm-install-windows) when multiple versions of node.js version are required, i.e. when using Control panel.
 * [Tortoise SVN](https://tortoisesvn.net/downloads.html) An SVN client for Windows.
-* [Git](https://git-scm.com/)
 
 ## Installation steps
 

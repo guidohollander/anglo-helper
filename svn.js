@@ -1,6 +1,8 @@
+const spawn = require('await-spawn');
 const inquirer = require('inquirer');
 const semver = require('semver');
 const fs = require('fs');
+// const { profile } = require('console');
 const consoleLog = require('./consoleLog');
 const clargs = require('./arguments');
 const promises = require('./promises');
@@ -11,6 +13,32 @@ const svnOptions = { trustServerCert: true };
 async function getArrExternals(url) {
   const svnExternals = await promises.svnPropGetPromise('svn:externals', `${url}`, svnOptions);
   return svnExternals.target.property._.split('\r\n');
+}
+
+function capitalizeWords(arr) {
+  return arr.map((element) => element.charAt(0).toUpperCase() + element.slice(1).toLowerCase());
+}
+
+function parseSvnUsername(s) {
+  const newS = s.trim().replace('ext-', '').replace('.', ' ');
+  return capitalizeWords(newS.split(' ')).join(' ');
+}
+
+async function getAuthUser() {
+  let sUserName = 'ext-unknown.user';
+  if (!state.profile.svnOptionsUsername) {
+    try {
+      const bl = await spawn('svn', ['auth']);
+      // eslint-disable-next-line prefer-destructuring
+      sUserName = bl.toString().split('\r\n').filter((x) => x.includes('Username'))[0].split(':')[1];
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.log(e.stderr.toString());
+    }
+  } else {
+    sUserName = state.profile.svnOptionsUsername;
+  }
+  return parseSvnUsername(sUserName);
 }
 
 async function getTagList(url) {
@@ -132,9 +160,9 @@ async function getTag(url, tagNumberinPreviousSolution) {
   const svnPathPartLength = bSolutionOrComponentOnTrunk ? 1 : 2;
   const svnPathPart = arrUrl.splice(-svnPathPartLength);
   const actualSvnTrunkBranchOrTagPart = svnPathPart[0].replace('"', '');
-  let derivedSvnTrunkBranchOrTagPart = bSolutionOrComponentOnTrunk ? 'tags' : actualSvnTrunkBranchOrTagPart;
+  const derivedSvnTrunkBranchOrTagPart = bSolutionOrComponentOnTrunk ? 'tags' : actualSvnTrunkBranchOrTagPart;
   const actualSvnTrunkBranchOrTagNumberPart = svnPathPart[svnPathPart.length - 1].replace('"', '');
-  let derivedSvnTrunkBranchOrTagNumberPart = actualSvnTrunkBranchOrTagNumberPart === 'undefined' ? 0 : actualSvnTrunkBranchOrTagNumberPart;
+  const derivedSvnTrunkBranchOrTagNumberPart = actualSvnTrunkBranchOrTagNumberPart === 'undefined' ? 0 : actualSvnTrunkBranchOrTagNumberPart;
   // if (tagNumberinPreviousSolution !== '') {
   //   derivedSvnTrunkBranchOrTagPart = 'tags';
   //   derivedSvnTrunkBranchOrTagNumberPart = tagNumberinPreviousSolution;
@@ -198,6 +226,7 @@ async function getTag(url, tagNumberinPreviousSolution) {
     }
   }
 
+  // eslint-disable-next-line no-nested-ternary
   previousArrTagsOrBranchesSorted = bSolutionOrComponentOnTrunk ? (tagNumberinPreviousSolution !== '' ? tagNumberinPreviousSolution : arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1]) : arrTagsOrBranchesSorted[indexCurrent - 1];
 
   if (bHasPrevious) {
@@ -264,6 +293,7 @@ async function getTag(url, tagNumberinPreviousSolution) {
 
 module.exports = {
   getArrExternals,
+  getAuthUser,
   getProbableSolution,
   getSVNContext,
   getTag,

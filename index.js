@@ -163,6 +163,7 @@ async function main() {
     // gather information about current solution for the tag report
     state.currentSolution = arrSolutions.find((s) => s.name === state.oSVNInfo.svnApp);
     state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionFrom);
+    state.prettySVNUsername = await svn.getAuthUser();
     // };
     let arrAll = [];
     await consoleLog.showHeader();
