@@ -1,7 +1,7 @@
 {
   "name": "anglo-helper",
   "descriptivename": "Anglo helper",
-  "version": "0.41.4",
+  "version": "0.41.5",
   "description": "Anglo helper",
   "main": "index.js",
   "bin": {
