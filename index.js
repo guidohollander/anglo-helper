@@ -164,6 +164,9 @@ async function main() {
     state.currentSolution = arrSolutions.find((s) => s.name === state.oSVNInfo.svnApp);
     state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionFrom);
     state.prettySVNUsername = await svn.getAuthUser();
+
+    state.startingTime = Date.now();
+    console.log()
     // };
     let arrAll = [];
     await consoleLog.showHeader();
@@ -480,7 +483,7 @@ async function main() {
               await util.execShellCommand(execCommand);
             } catch (error) {
               // eslint-disable-next-line no-console
-              console.dir('Errors while executing:', execCommand);// chalk.redBright(
+              console.dir('Errors while executing:', execCommand);//
               util.beep(3);
             }
           }
@@ -534,6 +537,14 @@ async function main() {
     for (const entry of state.arrSVNPotentialUpdateCollection) {
       consoleLog.logNewLine(`Potential [Ŭ]pdates: ${entry}`, 'cyan');
     }
+
+    // stats
+    state.endingTime = Date.now();
+    consoleLog.logNewLine('', 'gray');
+    consoleLog.logNewLine('Stats:', 'gray');
+    const date = new Date(state.endingTime);
+    consoleLog.logNewLine(`${date.toDateString()} ${date.getHours()}:${date.getMinutes()} / runtime: ${util.diffSeconds(new Date(state.startingTime), new Date(state.endingTime))} seconds`, 'gray');
+
     // store potential updates, so user can update the projects after closing bi using the --keepUp. After an actual update, empty
     const keepUpFilename = `${state.workingCopyFolder}keepup.json`;
     if (state.arrSVNPotentialUpdateCollection.length > 0) {
@@ -607,7 +618,7 @@ async function main() {
   } catch (error) {
     // console.log(error)
     // eslint-disable-next-line no-console
-    console.log('Errors occurred:', error);// chalk.redBright(
+    console.log('Errors occurred:', error);//
     util.beep(3);
   }
   process.stdout.write('\n');

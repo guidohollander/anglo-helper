@@ -31,4 +31,6 @@ module.exports = {
   timestampStart: '', // new Date().toISOString().replaceAll('T', '').replaceAll('-', '').replaceAll(':', '').substring(0, 14)
   exitCode: 0,
   prettySVNUsername: 'Anonymous',
+  startingTime: Date.now(),
+  endingTime: Date.now(),
 };

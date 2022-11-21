@@ -160,9 +160,9 @@ module.exports = {
       default: false,
     })
     .option('allowUnlink', {
-      description: 'When svn switch throws errors, deleted the project so it will be recognized as [M]issing project on the next run',
+      description: 'When svn switch throws errors, delete the project locally, so it will be recognized as [M]issing project on the next run',
       type: 'boolean',
-      default: true,
+      default: false,
     })
     .option('debug', {
       description: 'Output debug information',
