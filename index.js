@@ -166,8 +166,6 @@ async function main() {
     state.prettySVNUsername = await svn.getAuthUser();
 
     state.startingTime = Date.now();
-    console.log()
-    // };
     let arrAll = [];
     await consoleLog.showHeader();
     // get externals
@@ -369,10 +367,18 @@ async function main() {
     processLookupResultList.forEach((process) => {
       // use -data argument to be more specific in determining when be informed is running
       if (process) {
-        if (JSON.stringify(process.arguments).toLowerCase().includes('-data') && JSON.stringify(process.arguments).toLowerCase().includes(state.app.toLowerCase())) {
-          if (!clargs.argv.forceSVN) {
-            state.beInformedRunning = true;
+        if (JSON.stringify(process.arguments).toLowerCase().includes('-data')) {
+          if (path.normalize(`${process.arguments[process.arguments.indexOf('-data') + 1]}/`).toLocaleLowerCase() === path.normalize(state.workingCopyFolder).toLowerCase()) {
+            // there's a process BI and the argument -data is identical to the working copy folder of the current path
+            if (!clargs.argv.forceSVN) {
+              state.beInformedRunning = true;
+              state.hasMinDataArgument = true;
+            }
           }
+        } else if (!clargs.argv.forceSVN) {
+          // there's a process BI, but there's no -data argument.
+          state.beInformedRunning = true;
+          state.hasMinDataArgument = false;
         }
       }
     });

@@ -89,7 +89,11 @@ function showBIRunningWarning(paramBeInformedRunning) {
   if (paramBeInformedRunning) {
     logNewLine('', 'red');
     if (state.profile.autoSwitch || state.profile.autoUpdate) {
-      logNewLine(`Warning: Be Informed seems to be running ${(state.app).toLowerCase()}! Regarding svn [U]pdate and [S]witch: Only "detection" possible, indicated by [Š]/[Ŭ]`, 'red');
+      if (state.hasMinDataArgument) {
+        logNewLine(`Warning: Be Informed seems to be running ${(state.currentSolution.functionalName)}! Regarding svn [U]pdate and [S]witch: Only "detection" possible, indicated by [Š]/[Ŭ]`, 'red');
+      } else {
+        logNewLine(`Warning: Be Informed is running, but ${state.oAppContext.descriptiveName} is unable to determine to which working folder it is targeted. Start Be Informed with -data argument or ${state.oAppContext.descriptiveName} with --forceSVN (caution). Regarding svn [U]pdate and [S]witch: Only "detection" possible, indicated by [Š]/[Ŭ]`, 'red');
+      }
     }
   }
 }

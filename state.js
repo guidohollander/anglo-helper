@@ -33,4 +33,5 @@ module.exports = {
   prettySVNUsername: 'Anonymous',
   startingTime: Date.now(),
   endingTime: Date.now(),
+  hasMinDataArgument: false,
 };

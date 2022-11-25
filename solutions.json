@@ -18,5 +18,10 @@
         "name": "BDSU_MTS",
         "functionalName": "MTS Belastingdienst Suriname",
         "customer": "Belastingdienst Suriname"
-    }    
+    },
+    {
+        "name": "MTS_GRENADA",
+        "functionalName": "MTS Grenada",
+        "customer": "GRENADA"
+    }          
 ]
