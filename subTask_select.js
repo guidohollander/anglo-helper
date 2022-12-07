@@ -9,11 +9,20 @@ const svn = require('./svn');
 async function perform() {
   consoleLog.renderTitleToVersion();
   const svnToVersionTagsChoices = await promises.svnListPromise(`${state.oSVNInfo.appRoot}/tags`);
-  const qTags = svnToVersionTagsChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'tags/'.concat(b.name));
+  let qTags = [];
+  if (svnToVersionTagsChoices.list.entry) {
+    qTags = svnToVersionTagsChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'tags/'.concat(b.name));
+  }
+  let qBranches = [];
   const svnToVersionBranchesChoices = await promises.svnListPromise(`${state.oSVNInfo.appRoot}/branches`);
-  const qBranches = svnToVersionBranchesChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'branches/'.concat(b.name));
-  const qarrToVersion = qBranches.concat(qTags);
+  if (svnToVersionBranchesChoices.list.entry) {
+    qBranches = svnToVersionBranchesChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'branches/'.concat(b.name));
+  }
+  let qarrToVersion = [];
   qarrToVersion.push('trunk');
+  if (qTags.length > 0) {
+    qarrToVersion = qBranches.concat(qTags);
+  }
   const questionsToVersion = [
     {
       type: 'list',

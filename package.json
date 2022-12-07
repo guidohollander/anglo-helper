@@ -17,7 +17,6 @@
     "glob": "^8.0.3",
     "inquirer": "^8.0.0",
     "inquirer-search-list": "^1.2.6",
-    "install": "^0.13.0",
     "mssql": "^9.0.0",
     "node-svn-ultimate": "^1.2.1",
     "ps-node": "^0.1.6",
