@@ -184,11 +184,14 @@ async function main() {
       state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
     }
     if (clargs.argv.tagReport) {
-      consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.tagRevisionNumber}]`, 'gray');
-      state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl
-      // fs.writeFileSync('./previous_externals_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
-      consoleLog.logNewLine(`determine difference between ${state.oSolution.previous.relativeUrl} and ${state.oSolution.current.relativeUrl} rev:{${state.oSolution.previous.tagRevisionNumber}:${state.oSolution.current.tagRevisionNumber}}`, 'gray');
-      // difference
+      if (state.oSolution.previous) {
+        consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.tagRevisionNumber}]`, 'gray');
+        state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl
+        // fs.writeFileSync('./previous_externals_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
+        consoleLog.logNewLine(`determine difference between ${state.oSolution.previous.relativeUrl} and ${state.oSolution.current.relativeUrl} rev:{${state.oSolution.previous.tagRevisionNumber}:${state.oSolution.current.tagRevisionNumber}}`, 'gray');
+      }
+      // // difference
+      state.arrSVNExternalsPreviousSolutionTag = [];
       state.arrExt = state.arrSVNExternalsCurrentSolutionTag.filter((x) => !state.arrSVNExternalsPreviousSolutionTag.includes(x));
       // intersection: result can be used as filter on internals since we want ALL internals except for the ones that correspond with unmodified tagged components
       const arrIntFilter = state.arrSVNExternalsCurrentSolutionTag.filter((x) => state.arrSVNExternalsPreviousSolutionTag.includes(x));
@@ -581,8 +584,8 @@ async function main() {
       state.arrTagReportSolutionCollection.push({
         solution: state.currentSolution.name,
         toBeTagged: state.oSolution.toBeTagged,
-        previousSolutionTagNumber: state.oSolution.previous.tagNumber,
-        previousSolutionTagRevisionNumber: state.oSolution.previous.tagRevisionNumber,
+        previousSolutionTagNumber: state.oSolution.previous ? state.oSolution.previous.tagNumber : 'N/A',
+        previousSolutionTagRevisionNumber: state.oSolution.previous ? state.oSolution.previous.tagRevisionNumber : 1,
         currentSolutionTagNumber: state.oSolution.current.tagNumber,
         currentSolutionTagRevisionNumber: state.oSolution.current.tagRevisionNumber,
         solutionTagName: Object.prototype.hasOwnProperty.call(state.oSolution, 'future') ? `${state.currentSolution.functionalName} ${state.oSolution.future.tagNumber}` : `${state.currentSolution.functionalName} ${state.oSolution.current.tagNumber}`,

@@ -28,7 +28,11 @@ async function perform(componentEntry) {
     if (state.arrComponents.indexOf(componentEntry.componentName) === -1) {
       let bComponentLevelMajorTagNumberIncrease = false; // might be modified below
       const cloneSvnOptions = JSON.parse(JSON.stringify(svn.svnOptions));
-      cloneSvnOptions.revision = `${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;// :{${dateOfCurrentTag}} --verbose`
+      if (thisComponent.previous) {
+        cloneSvnOptions.revision = `${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;
+      } else {
+        cloneSvnOptions.revision = `1:${thisComponent.current.tagRevisionNumber}`;
+      }
       cloneSvnOptions.verbose = true;
       const logList = await promises.svnLogPromise(`"${state.oSVNInfo.baseURL}${componentEntry.componentBaseFolder}"`, cloneSvnOptions);
       let logListEntries = logList.logentry;
@@ -43,7 +47,7 @@ async function perform(componentEntry) {
         const arrJiraProjects = [];
         for await (const jiraEntry of logListEntries) {
           // add item only if it is not in the collection already
-          const jiraIssueNumber = jiraEntry.msg.match(regExJira).toString().toUpperCase().trim();
+          const jiraIssueNumber = jiraEntry.msg.toUpperCase().match(regExJira).toString().trim();
           let commitMessageString;
           // eslint-disable-next-line no-restricted-syntax
           for (const singularJiraIssueNumber of jiraIssueNumber.split(',')) {
@@ -54,7 +58,7 @@ async function perform(componentEntry) {
             }
             // add unique jira issue to object array
             if (arrComponentJiraCollection.findIndex((j) => j.jiraIssueNumber === singularJiraIssueNumber) === -1) {
-              commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace('https://jira.bearingpointcaribbean.com/browse/', '').trim();
+              commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.toUpperCase().match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace('https://jira.bearingpointcaribbean.com/browse/', '').trim();
               const listAllJiraAngloProjects = ['AIIRD', 'AISSB', 'CONVA', 'IRD', 'MTSSKN', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB'];
               let theIssue; let issueSummary; let issueStatus;
               if (listAllJiraAngloProjects.includes(singularJiraIssueNumber.split('-')[0])) {
@@ -127,9 +131,11 @@ async function perform(componentEntry) {
 
           // output tag info
           if (state.profile.verbose) {
-            consoleLog.logNewLine('', 'gray');
-            // eslint-disable-next-line no-nested-ternary
-            consoleLog.logNewLine(`${componentEntry.isTagged ? 'tag:     ' : componentEntry.isExternal ? 'trunk:   ' : 'internal:'} From ${thisComponent.previous.tagNumber} to ${Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber}, rev:{${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}}, ${arrComponentJiraCollection.length} JIRA issues`, 'green');
+            consoleLog.logNewLine('', 'gray');            
+            if (state.oSolution.previous) {
+              // eslint-disable-next-line no-nested-ternary
+              consoleLog.logNewLine(`${componentEntry.isTagged ? 'tag:     ' : componentEntry.isExternal ? 'trunk:   ' : 'internal:'} From ${thisComponent.previous.tagNumber} to ${Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber}, rev:{${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}}, ${arrComponentJiraCollection.length} JIRA issues`, 'green');
+            }
           }
           // sort jira issue alphabetically
           arrComponentJiraCollection.sort();
@@ -152,9 +158,9 @@ async function perform(componentEntry) {
             component: componentEntry.componentName,
             bareComponentName: componentEntry.bareComponentName,
             toBeTagged: thisComponent.toBeTagged,
-            previousComponentTagNumber: thisComponent.previous.tagNumber,
-            previousComponentTagRevisionNumber: thisComponent.previous.tagRevisionNumber,
-            previousComponentTagUrl: thisComponent.previous.tagRevisionNumber,
+            previousComponentTagNumber: thisComponent.previous ? thisComponent.previous.tagNumber : 'N/A',
+            previousComponentTagRevisionNumber: thisComponent.previous ? thisComponent.previous.tagRevisionNumber : 1,
+            previousComponentTagUrl: thisComponent.previous ? thisComponent.previous.tagUrl : thisComponent.current.tagUrl,
             currentComponentTagNumber: thisComponent.current.tagNumber,
             currentComponentTagRevisionNumber: thisComponent.current.tagRevisionNumber,
             currentComponentTagUrl: thisComponent.current.tagUrl,
