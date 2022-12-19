@@ -448,7 +448,7 @@ async function main() {
               // [S] not enabled
             }
             // update if autoUpdate enabled
-            if (state.profile.autoUpdate && (entry.isTrunk || clargs.argv.select)) {
+            if (state.profile.autoUpdate && (entry.isTrunk || entry.isBranched || (entry.isTagged && entry.isSpecific) || clargs.argv.select)) {
               await subTaskUpdate.perform(entry);
             } else {
               // [U] not enabled
