@@ -192,7 +192,7 @@ async function batchUpdateExternals() {
   const argreplaceAndWriteExternals = [];
   try {
     state.tagReportArray[0].componentCollection.forEach((entry) => {
-      if ((clargs.argv.tagReportExecutionMode === 'component' && entry.componentWasTagged) || (clargs.argv.tagReportExecutionMode === 'solution' && entry.componentWasTaggedForSolution)) {
+      if ((clargs.argv.tagReportExecutionMode === 'component' && entry.toBeTagged) || (clargs.argv.tagReportExecutionMode === 'solution' && entry.toBeTagged)) {
         const component = entry.bareComponentName;
         const from = entry.currentComponentTagNumber;
         const to = `tags/${entry.componentTagNumber}`;
