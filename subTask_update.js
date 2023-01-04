@@ -11,25 +11,30 @@ async function perform(componentEntry) {
     const cloneSvnOptions = JSON.parse(JSON.stringify(svn.svnOptions));
     cloneSvnOptions.includeExternal = true;
     cloneSvnOptions.vacuumPristines = true;
-    await promises.svnCleanUpPromise(dirWithQuotedProjectName, cloneSvnOptions);
-    const updated = await promises.svnUpdatePromise(dirWithQuotedProjectName, svn.svnOptions);
-    if (updated.includes('Updated to revision')) {
-      if (state.profile.verbose) {
-        anglo.memorable('[U]', state.arrSVNUpdatedCollection, componentEntry, updated, 'green');
-        // consoleLog.logNewLine('', 'gray');
-      } else {
-        anglo.memorable('[U]', state.arrSVNUpdatedCollection, componentEntry, updated, 'green');
+
+    try {
+      await promises.svnCleanUpPromise(dirWithQuotedProjectName, cloneSvnOptions);
+      const updated = await promises.svnUpdatePromise(dirWithQuotedProjectName, svn.svnOptions);
+      if (updated.includes('Updated to revision')) {
+        if (state.profile.verbose) {
+          anglo.memorable('[U]', state.arrSVNUpdatedCollection, componentEntry, updated, 'green');
+          // consoleLog.logNewLine('', 'gray');
+        } else {
+          anglo.memorable('[U]', state.arrSVNUpdatedCollection, componentEntry, updated, 'green');
+        }
       }
-    }
-    if (updated.includes('At revision')) {
-      consoleLog.logThisLine('[U]', 'gray');
-    }
-    if (updated.includes('Summary of conflicts')) {
-      if (state.profile.verbose) {
-        consoleLog.logNewLine(`[U] conflict detected, Resolve conflict(s) first: ${updated}`, 'gray'); // chalk.red(
-        util.beep(3);
-        process.exit();
+      if (updated.includes('At revision')) {
+        consoleLog.logThisLine('[U]', 'gray');
       }
+      if (updated.includes('Summary of conflicts')) {
+        if (state.profile.verbose) {
+          consoleLog.logNewLine(`[U] conflict detected, Resolve conflict(s) first: ${updated}`, 'gray'); // chalk.red(
+          util.beep(3);
+          process.exit();
+        }
+      }
+    } catch (error) {
+      consoleLog.logThisLine('[Ŭ] Errors while updating', 'red');
     }
   } else {
     // [U] enabled, but BI is running, so [Ŭ]. Only incoming updates, not outgoing

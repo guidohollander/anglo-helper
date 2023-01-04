@@ -12,10 +12,12 @@ function alertTerminal(mode) {
 }
 function determineProbableAngloApp(angloPath) {
   let probableAngloApp;
-  if ((angloPath.toLowerCase().includes('mbs')) && (!angloPath.toLowerCase().includes('mts'))) {
+  if ((angloPath.toLowerCase().includes('mbs'))) {
     probableAngloApp = 'mbs';
-  } else if ((angloPath.toLowerCase().includes('mts')) && (!angloPath.toLowerCase().includes('mbs'))) {
+  } else if ((angloPath.toLowerCase().includes('mts'))) {
     probableAngloApp = 'mts';
+  } else if (angloPath.toLowerCase().includes('online') || angloPath.toLowerCase().includes('opo')) {
+    probableAngloApp = 'online';
   }
   return probableAngloApp;
 }
@@ -33,12 +35,14 @@ function getProbableApp() {
   }
   if (clargs.argv.app) {
     probableApp = clargs.argv.app;
-  } else if (cwd.includes('mbs') || cwd.includes('mts')) {
+  } else if (cwd.includes('mbs') || cwd.includes('mts') || cwd.includes('online') || cwd.includes('opo')) {
     probableApp = determineProbableAngloApp(cwd);
   } else if ((fs.existsSync('./MBS Portal'))) {
     probableApp = 'mbs';
   } else if ((fs.existsSync('./MTS Portal'))) {
     probableApp = 'mts';
+  } else if ((fs.existsSync('./SC 2FA - specific'))) {
+    probableApp = 'online';
   } else {
     consoleLog.logNewLine('App could not be determined automatically. Please provide an --app as argument.', 'gray');
     process.exit(0);
@@ -68,7 +72,10 @@ function getWorkingCopyFolder(oAppContext) {
 function memorable(symbol, collection, entry, payload, color) {
   consoleLog.logThisLine(symbol, color);
   alertTerminal(symbol);
-  collection.push(entry.key);
+  const itemToAdd = (symbol === '[M]' ? entry.componentRoot : entry.key);
+  if (collection.indexOf(itemToAdd) === -1) {
+    collection.push(itemToAdd);
+  }
 }
 function tidyArrayContent(entry) {
   let inputEntry = entry;

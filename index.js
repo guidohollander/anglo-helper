@@ -232,6 +232,7 @@ async function main() {
           key: tidied.name,
           path: decodeURI(tidied.path),
           componentBaseFolder: decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
+          componentRoot: state.oSVNInfo.baseURL + decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/').replace(component.bareComponentName, '').replace(/^\//, ''),
           componentName: component.fullComponentName,
           bareComponentName: component.bareComponentName,
           relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/')
@@ -275,6 +276,7 @@ async function main() {
         key: entry.name,
         path: `${state.oSVNInfo.svnAndApp + state.oSVNInfo.repo}/${state.oSVNInfo.angloSVNPath}/${entry.name}`,
         componentBaseFolder: `${state.oSVNInfo.svnAndApp + state.oSVNInfo.repo}/${state.oSVNInfo.angloSVNPath}/${entry.name}`,
+        componentRoot: state.oSVNInfo.appRoot,
         isInternal: true,
         isCoreComponent: false,
         isInterfaceDefinition: false,
@@ -522,8 +524,13 @@ async function main() {
       consoleLog.logNewLine(`No significant updates for ${state.app}`, 'gray');
     }
     if (state.arrMissingCollection.length > 0) {
-      consoleLog.logNewLine(`${state.arrMissingCollection.length} [M]issing project(s): Choose "Import / General / Existing Projects into workspace" in Be Informed Studio`, 'red');
+      consoleLog.logNewLine(`${state.arrMissingCollection.length} [M]issing project(s): Add repo location(s) below and choose "Import / General / Existing Projects into workspace" in Be Informed Studio`, 'red');
     }
+    // eslint-disable-next-line no-restricted-syntax
+    for (const entry of state.arrMissingCollection) {
+      consoleLog.logNewLine(`* ${entry}`, 'green');
+    }
+
     // eslint-disable-next-line no-restricted-syntax
     for (const entry of state.arrSwitchUpdateCollection) {
       consoleLog.logNewLine(`SVN [S]witch: ${entry}`, 'green');
@@ -760,7 +767,7 @@ async function prequal() {
         type: 'confirm',
         name: 'verbose',
         message: `Verbose output: ${state.oAppContext.descriptiveName} can output more detailed process information, for example about (potential) SVN updates, flyway operations and specific comparisons. Would you like to enable this feature? `,
-        default: false,
+        default: true,
       }];
     inquirer
       .prompt(questions)

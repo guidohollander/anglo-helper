@@ -5,14 +5,24 @@
         "customer": "ANGUILLA"
     },
     {
+        "name": "MTS_ANGUILLA",
+        "functionalName": "MTS Anguilla",
+        "customer": "ANGUILLA"
+    },
+    {
+        "name": "ONLINE_ANGUILLA",
+        "functionalName": "Online Anguilla",
+        "customer": "ANGUILLA"
+    },    
+    {
         "name": "MTS_SKN",
         "functionalName": "MBS Saint Kitts and Nevis",
         "customer": "SKN"
     },
     {
-        "name": "MTS_ANGUILLA",
-        "functionalName": "MTS Anguilla",
-        "customer": "ANGUILLA"
+        "name": "ONLINE_SKN",
+        "functionalName": "Online Saint Kitts and Nevis",
+        "customer": "SKN"
     },
     {
         "name": "BDSU_MTS",
@@ -23,5 +33,10 @@
         "name": "MTS_GRENADA",
         "functionalName": "MTS Grenada",
         "customer": "GRENADA"
-    }          
+    },
+    {
+        "name": "ONLINE_GD",
+        "functionalName": "Online Grenada",
+        "customer": "GRENADA"
+    }            
 ]

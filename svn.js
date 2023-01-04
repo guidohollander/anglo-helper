@@ -59,6 +59,10 @@ async function getProbableSolution() {
     const p = 'MTS Portal';
     const resultInfo = await promises.svnInfoPromise(`"${cwd}\\${p}"`, svnOptions);
     probableSolution = resultInfo.entry.url.split('/')[resultInfo.entry.url.split('/').indexOf('svn') + 1];
+  } else if ((fs.existsSync('./SC 2FA - specific/.svn/'))) {
+    const p = 'SC 2FA - specific';
+    const resultInfo = await promises.svnInfoPromise(`"${cwd}\\${p}"`, svnOptions);
+    probableSolution = resultInfo.entry.url.split('/')[resultInfo.entry.url.split('/').indexOf('svn') + 1];
   } else {
     consoleLog.logNewLine('Solution could not be determined automatically. Please provide an --solution as argument.', 'gray');
     process.exit();
@@ -67,8 +71,19 @@ async function getProbableSolution() {
 }
 
 async function getSVNContext(app, workingCopyFolder, switchedTo) {
-  const dirWithQuotedProjectName = (`${workingCopyFolder}\\${JSON.stringify(`${app.toUpperCase()} Portal`)}`).replace(/[\\/]+/g, '/');// .replace(/^([a-zA-Z]+:|\.\/)/, '');
-  const dir = `.//${app.toUpperCase()} Portal`;
+  let dirWithQuotedProjectName;
+  let dir;
+  let f;
+  if (app === 'mts' || app === 'mbs') {
+    dirWithQuotedProjectName = (`${workingCopyFolder}\\${JSON.stringify(`${app.toUpperCase()} Portal`)}`).replace(/[\\/]+/g, '/');// .replace(/^([a-zA-Z]+:|\.\/)/, '');
+    dir = `.//${app.toUpperCase()} Portal`;
+    f = `${state.app.toUpperCase()} Portal`;
+  } else if (app === 'online') {
+    dirWithQuotedProjectName = (`${workingCopyFolder}\\${JSON.stringify('SC 2FA - specific')}`).replace(/[\\/]+/g, '/');// .replace(/^([a-zA-Z]+:|\.\/)/, '');
+    dir = './/SC 2FA - specific';
+    f = 'SC 2FA - specific';
+  }
+
   state.oAppContext.solution = await getProbableSolution();
   let appRoot = `https://svn.bearingpointcaribbean.com/svn/${state.oAppContext.solution}`;
   if (!fs.existsSync(dir)) {
@@ -102,7 +117,7 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
     await inquirer
       .prompt(questionsToVersion)
       .then(async (answersToVersion) => {
-        const url = `https://svn.bearingpointcaribbean.com/svn/${state.oAppContext.solution.toUpperCase()}/${answersToVersion.selectedSVNVersion}/${state.app.toUpperCase()} Portal`;
+        const url = `https://svn.bearingpointcaribbean.com/svn/${state.oAppContext.solution.toUpperCase()}/${answersToVersion.selectedSVNVersion}/${f}`;
         const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`;
         await util.execShellCommand(execCommand);
       })
