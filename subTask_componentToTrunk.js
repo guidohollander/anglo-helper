@@ -115,7 +115,7 @@ async function performTagToTrunk(arr) {
       try {
         if (answers.areyousure) {
           const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers.componentSelector, answers.componentSelector.selectedComponent.relativeUrl, 'trunk');
-          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, false);
+          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, true);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
             await subTaskSwitch.perform(componentEntry);
@@ -164,7 +164,7 @@ async function performSetOfTagsToTrunk(arr) {
           // eslint-disable-next-line no-restricted-syntax
           for await (const entry of answers.componentSelector) {
             const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(entry, entry.selectedComponent.relativeUrl, 'trunk');
-            await teams.postMessageToTeams(`${progressCounter}/${answers.componentSelector.length}: anglo-helper --componentsToTrunk`, `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${entry.selectedComponent.key} from ${entry.selectedComponent.oldRelativeUrl} to ${entry.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, false);
+            await teams.postMessageToTeams(`${progressCounter}/${answers.componentSelector.length}: anglo-helper --componentsToTrunk`, `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${entry.selectedComponent.key} from ${entry.selectedComponent.oldRelativeUrl} to ${entry.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, true);
             // eslint-disable-next-line no-restricted-syntax
             for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
               await subTaskSwitch.perform(componentEntry);
@@ -225,7 +225,7 @@ async function performTrunkToTag(arr) {
       try {
         if (answers.areyousure) {
           const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers.componentSelector, 'trunk', `tags/${answers.tagSelector}`);
-          await teams.postMessageToTeams('anglo-helper --componentToTag', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, false);
+          await teams.postMessageToTeams('anglo-helper --componentToTag', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, true);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
             await subTaskSwitch.perform(componentEntry);
