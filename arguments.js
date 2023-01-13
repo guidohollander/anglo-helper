@@ -24,6 +24,10 @@ module.exports = {
       description: 'switch a selected, tagged component to trunk and update its svn:external definition. Can only be used on solution trunk',
       type: 'boolean',
     })
+    .option('componentsToTrunk', {
+      description: 'switch a selected, tagged set of components to trunk and update their svn:external definition. Can only be used on solution trunk',
+      type: 'boolean',
+    })    
     .option('componentToTag', {
       description: 'switch a selected component on trunk to an existing tag and update its svn:external definition. Can only be used on solution trunk',
       type: 'boolean',
@@ -60,6 +64,21 @@ module.exports = {
     .option('tagReportExecution', {
       description: 'execute the tag report that is provided on the command line. Switches off [S],[U],[F] and [C]',
       type: 'string',
+    })
+    .option('tagReportMode', {
+      describe: 'tag report mode: either component or solution',
+      choices: ['component', 'solution'],
+      default: 'solution',
+    })
+    .option('tagReportSolutionMajorIncrement', {
+      describe: 'Major Version increment, ie. 2.8.0 becomes 3.0.0 not 2.9.0',
+      type: 'boolean',
+      default: 'false',
+    })
+    .option('tagReportMinimumSemVer', {
+      describe: 'Minimum component semantic version number, ie when set to "2.0.0" and component is 1.8.0, it will be increment to 2.0.0',
+      type: 'string',
+      default: '2.0.0',
     })
     .option('tagReportExecutionMode', {
       describe: 'execution of the tag report: either component-only or solution-only',

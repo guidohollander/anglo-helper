@@ -168,7 +168,7 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
   };
 }
 // get revision info of previous trunk/tag/branch
-async function getTag(url, tagNumberinPreviousSolution) {
+async function getTag(url, tagNumberinPreviousSolution, componentEntry) {
   const bSolutionOrComponentOnTrunk = url.includes('trunk');
   // get list of tags of this entry
   const arrUrl = url.split('/');
@@ -289,10 +289,22 @@ async function getTag(url, tagNumberinPreviousSolution) {
   if (bSolutionOrComponentOnTrunk) {
     if (bHasPrevious) {
       // the replace is to check it numeric except for period char, so 1.11.2_new becomes 1.11.2
-      futureTagNumber = semver.inc(arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1].replace(/[^0-9.]/g, ''), 'minor');
+      let majorOrMinor = 'minor';
+      if (!componentEntry && clargs.argv.tagReportSolutionMajorIncrement) {
+        majorOrMinor = 'major';
+      }
+      futureTagNumber = arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1].replace(/[^0-9.]/g, '');
+      const storeTagNumber = futureTagNumber;
+      if (clargs.argv.tagReportMinimumSemVer) {
+        if (semver.lt(storeTagNumber, clargs.argv.tagReportMinimumSemVer)) {
+          consoleLog.logThisLine(`[forced semver increment] ${storeTagNumber}=>${clargs.argv.tagReportMinimumSemVer}`, 'blue');
+          futureTagNumber = clargs.argv.tagReportMinimumSemVer;
+        }
+      }
+      futureTagNumber = semver.inc(futureTagNumber, majorOrMinor);
       futureTagUrl = previousTagUrl.replace(previousTagNumber, futureTagNumber);
     } else {
-      futureTagNumber = '1.0';
+      futureTagNumber = '1.0.0';
       futureTagUrl = currentTagUrl.replace('trunk', `${derivedSvnTrunkBranchOrTagPart}/${futureTagNumber}`);
     }
     future = {

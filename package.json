@@ -16,6 +16,7 @@
     "clear": "^0.1.0",
     "glob": "^8.0.3",
     "inquirer": "^8.0.0",
+    "inquirer-checkbox-plus-prompt": "^1.4.1",
     "inquirer-search-list": "^1.2.6",
     "mssql": "^9.0.0",
     "node-svn-ultimate": "^1.2.1",

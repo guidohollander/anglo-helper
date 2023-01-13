@@ -43,7 +43,7 @@ function getComponentName(componentBaseFolder) {
   return { fullComponentName, bareComponentName };
 }
 function catchKeyPress() {
-  if (!clargs.argv.componentToTrunk && !clargs.argv.componentToTag && !clargs.argv.select) { // only allow during regular, long-running entry (component / project) based operations
+  if (!clargs.argv.componentToTrunk && !clargs.argv.componentsToTrunk && !clargs.argv.componentToTag && !clargs.argv.select) { // only allow during regular, long-running entry (component / project) based operations
     readline.emitKeypressEvents(process.stdin);
     if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
     process.stdin.on('keypress', (chunk, key) => {
@@ -162,6 +162,7 @@ async function main() {
 
     // gather information about current solution for the tag report
     state.currentSolution = arrSolutions.find((s) => s.name === state.oSVNInfo.svnApp);
+    // state.oSVNInfo.remoteRepo = 'https://svn.bearingpointcaribbean.com/svn/MTS_ANGUILLA/tags/2.0.0';
     state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionFrom);
     state.prettySVNUsername = await svn.getAuthUser();
 
@@ -186,19 +187,19 @@ async function main() {
     if (clargs.argv.tagReport) {
       if (state.oSolution.previous) {
         consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.tagRevisionNumber}]`, 'gray');
-        state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl
-        // fs.writeFileSync('./previous_externals_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
+        state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl        
         consoleLog.logNewLine(`determine difference between ${state.oSolution.previous.relativeUrl} and ${state.oSolution.current.relativeUrl} rev:{${state.oSolution.previous.tagRevisionNumber}:${state.oSolution.current.tagRevisionNumber}}`, 'gray');
       }
       // // difference
-      state.arrSVNExternalsPreviousSolutionTag = [];
+      // state.arrSVNExternalsPreviousSolutionTag = [];
       state.arrExt = state.arrSVNExternalsCurrentSolutionTag.filter((x) => !state.arrSVNExternalsPreviousSolutionTag.includes(x));
       // intersection: result can be used as filter on internals since we want ALL internals except for the ones that correspond with unmodified tagged components
       const arrIntFilter = state.arrSVNExternalsCurrentSolutionTag.filter((x) => state.arrSVNExternalsPreviousSolutionTag.includes(x));
       if (clargs.argv.writeJsonFiles) {
         fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
+        fs.writeFileSync('./previous_externals_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
         fs.writeFileSync('./externals_difference_raw.json', JSON.stringify(state.arrExt, null, 2));
-        fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrIntFilter, null, 2));
+        //fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrIntFilter, null, 2));
       }
       arrIntFilter.forEach((entry) => {
         const tidied = anglo.tidyArrayContent(entry);
@@ -418,7 +419,7 @@ async function main() {
     const spacer = '∙';
     let dir;
     // loop all folder in arrAll
-    const bEntryAction = !clargs.argv.componentToTrunk && !clargs.argv.componentToTag;
+    const bEntryAction = !clargs.argv.componentToTrunk && !clargs.argv.componentsToTrunk && !clargs.argv.componentToTag;
     if (bEntryAction) {
       // eslint-disable-next-line no-restricted-syntax
       for await (const entry of arrAll) {
@@ -504,10 +505,12 @@ async function main() {
       }
     } else if (clargs.argv.componentToTrunk) {
       await componentToTrunk.performTagToTrunk(arrAll);
+    } else if (clargs.argv.componentsToTrunk) {
+      await componentToTrunk.performSetOfTagsToTrunk(arrAll);
     } else if (clargs.argv.componentToTag) {
       await componentToTrunk.performTrunkToTag(arrAll);
     }
-    if (clargs.argv.tagReportExecution) {
+    if (clargs.argv.tagReportExecution && !clargs.argv.dryRun) {
       // to update all externals to the newly created tags
       await subTaskTagReportExecution.batchUpdateExternals();
     }

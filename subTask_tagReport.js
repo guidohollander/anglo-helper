@@ -18,7 +18,7 @@ async function perform(componentEntry) {
       let previousVersion = '';
       const oPreviousVersion = state.arrPreviousExternals.find((e) => e.key === componentEntry.key);
       if (oPreviousVersion) previousVersion = oPreviousVersion.version;
-      thisComponent = await svn.getTag(`${componentEntry.local_project_repo.split('/').slice(0, -1).join('/')}`, previousVersion);
+      thisComponent = await svn.getTag(`${componentEntry.local_project_repo.split('/').slice(0, -1).join('/')}`, previousVersion, componentEntry);
     } else
     // for bInternalComponent: look at the changes on the same component since the previous tag of the solution, ie from /mbs_anguilla/tags/1.9.0/DSC ABC - specific to /mbs_anguilla/trunk/DSC ABC - specific
     if (bInternalComponent) {
@@ -28,10 +28,20 @@ async function perform(componentEntry) {
     if (state.arrComponents.indexOf(componentEntry.componentName) === -1) {
       let bComponentLevelMajorTagNumberIncrease = false; // might be modified below
       const cloneSvnOptions = JSON.parse(JSON.stringify(svn.svnOptions));
-      if (thisComponent.previous) {
-        cloneSvnOptions.revision = `${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;
+      if (clargs.argv.tagReportMode === 'solution' && bExternalComponent) {
+        if (thisComponent.solutionPrevious) {
+          cloneSvnOptions.revision = `${thisComponent.solutionPrevious.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;
+        } else {
+          cloneSvnOptions.revision = `1:${thisComponent.current.tagRevisionNumber}`;
+        }
+      } else if (clargs.argv.tagReportMode === 'component' || bInternalComponent) {
+        if (thisComponent.previous) {
+          cloneSvnOptions.revision = `${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;
+        } else {
+          cloneSvnOptions.revision = `1:${thisComponent.current.tagRevisionNumber}`;
+        }
       } else {
-        cloneSvnOptions.revision = `1:${thisComponent.current.tagRevisionNumber}`;
+        console.log(`${componentEntry.componentName} skipped`);
       }
       cloneSvnOptions.verbose = true;
       const logList = await promises.svnLogPromise(`"${state.oSVNInfo.baseURL}${componentEntry.componentBaseFolder}"`, cloneSvnOptions);
@@ -60,13 +70,20 @@ async function perform(componentEntry) {
             if (arrComponentJiraCollection.findIndex((j) => j.jiraIssueNumber === singularJiraIssueNumber) === -1) {
               commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.toUpperCase().match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace('https://jira.bearingpointcaribbean.com/browse/', '').trim();
               const listAllJiraAngloProjects = ['AIIRD', 'AISSB', 'CONVA', 'IRD', 'MTSSKN', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB', 'MTSGD'];
-              let theIssue; let issueSummary; let issueStatus;
+              let theIssue; let issueSummary; let issueStatus; let theEpicLink; let epicLink;
               if (listAllJiraAngloProjects.includes(singularJiraIssueNumber.split('-')[0])) {
                 try {
                   // eslint-disable-next-line no-await-in-loop
                   theIssue = await jira.getJiraIssue(state.profile.jiraUsername, state.profile.jiraPassword, singularJiraIssueNumber);
                   issueSummary = theIssue.data.fields.summary;
                   issueStatus = theIssue.data.fields.status.name;
+                  // customfield_10008 of the issue contains the epic link issue
+                  epicLink='';
+                  if (theIssue.data.fields.customfield_10008) {
+                    // eslint-disable-next-line no-await-in-loop
+                    theEpicLink = await jira.getJiraIssue(state.profile.jiraUsername, state.profile.jiraPassword, theIssue.data.fields.customfield_10008);
+                    epicLink = theEpicLink.data.fields.summary;
+                  }
                 } catch (error) {
                   issueSummary = 'could not be retrieved due to error';
                   issueStatus = 'could not be retrieved due to error';
@@ -80,6 +97,7 @@ async function perform(componentEntry) {
                     jiraIssueNumber: singularJiraIssueNumber,
                     jiraIssueDescription: issueSummary,
                     issueStatus,
+                    epicLink: !epicLink ? '-' : epicLink,
                     impact: bIssueLevelMajorTagNumberIncrease,
                     commitMessages: [],
                   },
@@ -119,9 +137,20 @@ async function perform(componentEntry) {
         if (arrComponentJiraCollection.length > 0) {
           // getTag has already been called, but future version was determined inpredictably because the impact was not known in that stage. Overwrite it here when necessary
           let derivedNewTagNumber;
-          if (bExternalComponent) {
+          if (bExternalComponent && !thisComponent.future) {
             if (componentEntry.isTrunk) {
+              const storeTagNumber = thisComponent.previous.tagNumber;
+              if (thisComponent.previous.tagNumber.split('.').length > 3) {
+                thisComponent.previous.tagNumber = thisComponent.previous.tagNumber.split('.').splice(0, 3).join('.');
+              }
               derivedNewTagNumber = semver.inc(thisComponent.previous.tagNumber, bComponentLevelMajorTagNumberIncrease ? 'minor' : 'patch');
+              // if specified, increase component number to given tagReportMinimumSemVer
+              if (clargs.argv.tagReportMinimumSemVer) {
+                if (semver.lt(derivedNewTagNumber, clargs.argv.tagReportMinimumSemVer)) {
+                  consoleLog.logThisLine(`[forced semver increment] ${storeTagNumber}=>${clargs.argv.tagReportMinimumSemVer}`, 'blue');
+                  derivedNewTagNumber = clargs.argv.tagReportMinimumSemVer;
+                }
+              }
               thisComponent.future.tagNumber = derivedNewTagNumber;
               const t = thisComponent.future.tagUrl.split('/');
               t[t.length - 1] = derivedNewTagNumber;
@@ -131,10 +160,15 @@ async function perform(componentEntry) {
 
           // output tag info
           if (state.profile.verbose) {
-            consoleLog.logNewLine('', 'gray');            
+            consoleLog.logNewLine('', 'gray');
             if (state.oSolution.previous) {
-              // eslint-disable-next-line no-nested-ternary
-              consoleLog.logNewLine(`${componentEntry.isTagged ? 'tag:     ' : componentEntry.isExternal ? 'trunk:   ' : 'internal:'} From ${thisComponent.previous.tagNumber} to ${Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber}, rev:{${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}}, ${arrComponentJiraCollection.length} JIRA issues`, 'green');
+              if (clargs.argv.tagReportMode === 'solution') {
+                // eslint-disable-next-line no-nested-ternary
+                consoleLog.logNewLine(`${componentEntry.isTagged ? 'tag:     ' : componentEntry.isExternal ? 'trunk:   ' : 'internal:'} From ${componentEntry.solutionPrevious ? thisComponent.solutionPrevious.tagNumber : state.oSolution.previous.tagNumber} to ${Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber}, rev:{${thisComponent.solutionPrevious ? thisComponent.solutionPrevious.tagRevisionNumber : state.oSolution.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}}, ${arrComponentJiraCollection.length} JIRA issues`, 'green');
+              } else if (clargs.argv.tagReportMode === 'component') {
+                // eslint-disable-next-line no-nested-ternary
+                consoleLog.logNewLine(`${componentEntry.isTagged ? 'tag:     ' : componentEntry.isExternal ? 'trunk:   ' : 'internal:'} From ${componentEntry.previous ? thisComponent.previous.tagNumber : state.oSolution.previous.tagNumber} to ${Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber}, rev:{${thisComponent.previous ? thisComponent.previous.tagRevisionNumber : state.oSolution.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}}, ${arrComponentJiraCollection.length} JIRA issues`, 'green');
+              }
             }
           }
           // sort jira issue alphabetically

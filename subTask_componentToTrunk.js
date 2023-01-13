@@ -15,6 +15,7 @@ const svn = require('./svn');
 const svnOptions = { trustServerCert: true };
 
 inquirer.registerPrompt('search-list', require('inquirer-search-list'));
+inquirer.registerPrompt('checkbox-plus', require('inquirer-checkbox-plus-prompt'));
 
 function getAllIndexes(arr, val) {
   const indexes = []; let i;
@@ -27,7 +28,7 @@ async function writeExternals(sExternals, componentToTrunkAnswers, source, targe
   fs.writeFileSync(fMod, sExternals);
   let commitMessage;
   if (componentToTrunkAnswers) {
-    commitMessage = `[${componentToTrunkAnswers.jiraIssue ? componentToTrunkAnswers.jiraIssue : ''}]: auto update external ${componentToTrunkAnswers.componentSelector.selectedComponent.key} from ${source} to ${target}`;
+    commitMessage = `[${componentToTrunkAnswers.jiraIssue ? componentToTrunkAnswers.jiraIssue : ''}]: auto update external ${componentToTrunkAnswers.selectedComponent.key} from ${source} to ${target}`;
   } else {
     commitMessage = 'Auto update externals';
   }
@@ -62,7 +63,7 @@ async function updateExternal(arrComponents, arrExternals, componentName, search
 async function replaceAndWriteExternalsComponentToTrunk(answers, source, target) {
   const oExternals = await promises.svnPropGetPromise('svn:externals', state.oSVNInfo.remoteRepo, svnOptions);
   const externals = oExternals.target.property._.split('\r\n');
-  const oUpdatedExternals = await updateExternal(answers.componentSelector.componentCollection, externals, answers.componentSelector.selectedComponent.key, source, target);
+  const oUpdatedExternals = await updateExternal(answers.componentCollection, externals, answers.selectedComponent.key, source, target);
   await writeExternals(oUpdatedExternals.externals, answers, source, target);
   return oUpdatedExternals;
 }
@@ -113,11 +114,62 @@ async function performTagToTrunk(arr) {
     .then(async (answers) => {
       try {
         if (answers.areyousure) {
-          const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers, answers.componentSelector.selectedComponent.relativeUrl, 'trunk');
-          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, true);
+          const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers.componentSelector, answers.componentSelector.selectedComponent.relativeUrl, 'trunk');
+          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, false);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
             await subTaskSwitch.perform(componentEntry);
+          }
+        }
+      } catch (error) {
+        console.dir(error);
+      }
+    });
+}
+
+async function performSetOfTagsToTrunk(arr) {
+  const oarrQ = arr.filter((e) => e.isExternal && e.isTagged && e.isCoreComponent);
+  const arrQ = Object.values(oarrQ).map((i) => ({ value: { selectedComponent: i, componentCollection: arr }, name: `${i.key} [${i.relativeUrl}]` }));
+
+  if (!state.oSolution.current.relativeUrl === 'trunk') consoleLog('Warning!! Your repository is not pointing towards the trunk!', 'red');
+  await inquirer
+    .prompt([
+      {
+        type: 'checkbox',
+        message: 'Search and select solution components to switch to trunk.',
+        name: 'componentSelector',
+        choices: arrQ,
+        mandatory: true,
+        validate(value) {
+          const valid = value.length > 0;
+          return valid || 'Select at least one component';
+        },
+      },
+      {
+        type: 'boolean',
+        message: (question) => `Are you sure you want to switch these ${question.componentSelector.length} selected components to trunk?`,
+        name: 'areyousure',
+        default: true,
+      },
+      {
+        type: 'input',
+        message: 'Optionally specify a JIRA issue. It will be registered in the svn commit and anglo-helper teams messages.',
+        name: 'jiraIssue',
+      },
+    ])
+    .then(async (answers) => {
+      try {
+        if (answers.areyousure) {
+          let progressCounter = 1;
+          // eslint-disable-next-line no-restricted-syntax
+          for await (const entry of answers.componentSelector) {
+            const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(entry, entry.selectedComponent.relativeUrl, 'trunk');
+            await teams.postMessageToTeams(`${progressCounter}/${answers.componentSelector.length}: anglo-helper --componentsToTrunk`, `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${entry.selectedComponent.key} from ${entry.selectedComponent.oldRelativeUrl} to ${entry.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, false);
+            // eslint-disable-next-line no-restricted-syntax
+            for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
+              await subTaskSwitch.perform(componentEntry);
+            }
+            progressCounter += 1;
           }
         }
       } catch (error) {
@@ -172,8 +224,8 @@ async function performTrunkToTag(arr) {
     .then(async (answers) => {
       try {
         if (answers.areyousure) {
-          const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers, 'trunk', `tags/${answers.tagSelector}`);
-          await teams.postMessageToTeams('anglo-helper --componentToTag', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, true);
+          const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers.componentSelector, 'trunk', `tags/${answers.tagSelector}`);
+          await teams.postMessageToTeams('anglo-helper --componentToTag', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, false);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
             await subTaskSwitch.perform(componentEntry);
@@ -187,6 +239,7 @@ async function performTrunkToTag(arr) {
 
 module.exports = {
   performTrunkToTag,
+  performSetOfTagsToTrunk,
   performTagToTrunk,
   replaceAndWriteExternals,
 };
