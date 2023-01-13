@@ -148,7 +148,7 @@ async function perform(componentEntry) {
     // solution component - jira handling
     // ------------------------------------------------------------------
     // jira project handling
-    if (componentEntry.isTrunk && componentEntry.isExternal) {
+    if ((componentEntry.isTrunk || componentEntry.isTagged) && componentEntry.isExternal) {
       // let tagReportExecutionComponentData = componentEntry.componentName + ' ' + tagReportExecutionComponentData.currentTagNumber;
       consoleLog.logNewLine(`${tagReportExecutionComponentData.component} holding ${tagReportExecutionComponentData.jiraIssues.length} issues in ${tagReportExecutionComponentData.jiraProjects.length} distinct project(s)`, 'green');
       consoleLog.logNewLine('', 'gray');
