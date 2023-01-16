@@ -37,6 +37,11 @@ module.exports = {
       default: false,
       type: 'boolean',
     })
+    .option('quiet', {
+      description: 'do not notify teams channel',
+      default: false,
+      type: 'boolean',
+    })
     .option('profile', {
       description: 'use a particular profile',
       type: 'string',
