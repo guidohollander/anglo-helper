@@ -141,7 +141,8 @@ async function performSetOfTagsToTrunk(arr) {
         choices: arrQ,
         mandatory: true,
         validate(value) {
-          const valid = value.length > 0;
+          const valid = value.
+          length > 0;
           return valid || 'Select at least one component';
         },
       },
@@ -161,6 +162,7 @@ async function performSetOfTagsToTrunk(arr) {
       try {
         if (answers.areyousure) {
           let progressCounter = 1;
+          await teams.postMessageToTeams('anglo-helper --componentsToTrunk', `${answers.componentSelector.length} projects from tag to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, !clargs.argv.quiet);
           // eslint-disable-next-line no-restricted-syntax
           for await (const entry of answers.componentSelector) {
             const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(entry, entry.selectedComponent.relativeUrl, 'trunk');            
@@ -170,7 +172,7 @@ async function performSetOfTagsToTrunk(arr) {
             }
             progressCounter += 1;
           }
-          await teams.postMessageToTeams('anglo-helper --componentsToTrunk', `${progressCounter} projects from tag to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, !clargs.argv.quiet);
+          
         }
       } catch (error) {
         console.dir(error);
