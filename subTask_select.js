@@ -10,18 +10,26 @@ async function perform() {
   consoleLog.renderTitleToVersion();
   const svnToVersionTagsChoices = await promises.svnListPromise(`${state.oSVNInfo.appRoot}/tags`);
   let qTags = [];
-  if (svnToVersionTagsChoices.list.entry) {
+  if (Array.isArray(svnToVersionTagsChoices.list.entry)) {
     qTags = svnToVersionTagsChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'tags/'.concat(b.name));
+  } else {
+    qTags.push('tags/'.concat(svnToVersionTagsChoices.list.entry.name));
   }
+
   let qBranches = [];
   const svnToVersionBranchesChoices = await promises.svnListPromise(`${state.oSVNInfo.appRoot}/branches`);
-  if (svnToVersionBranchesChoices.list.entry) {
+  if (Array.isArray(svnToVersionBranchesChoices.list.entry)) {
     qBranches = svnToVersionBranchesChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'branches/'.concat(b.name));
+  } else {
+    qBranches.push('branches/'.concat(svnToVersionBranchesChoices.list.entry.name));
   }
   let qarrToVersion = [];
   qarrToVersion.push('trunk');
   if (qTags.length > 0) {
-    qarrToVersion = qBranches.concat(qTags);
+    qarrToVersion = qarrToVersion.concat(qTags);
+  }
+  if (qBranches.length > 0) {
+    qarrToVersion = qarrToVersion.concat(qBranches);
   }
   const questionsToVersion = [
     {
@@ -38,7 +46,7 @@ async function perform() {
       const urlParts = state.oSVNInfo.remoteRepo.split('/');
       state.oSVNInfo.angloSVNPath = urlParts[urlParts.length - 1];
       state.oSVNInfo.repo = urlParts[urlParts.length - 2];
-      state.oSVNInfo.svnAndApp = `/svn/${urlParts[urlParts.length - 3]}/`;
+      state.oSVNInfo.svnAndApp = `/svn/${urlParts[urlParts.length - 3]}/`.replace('/svn/svn/', '/svn/');
       state.oSVNInfo.currentVersion = `${state.oSVNInfo.repo}/${state.oSVNInfo.angloSVNPath}`;
       const fn = 'profile_1.json';
       // eslint-disable-next-line import/no-dynamic-require, global-require

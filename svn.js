@@ -88,23 +88,45 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
   let appRoot = `https://svn.bearingpointcaribbean.com/svn/${state.oAppContext.solution}`;
   if (!fs.existsSync(dir)) {
     consoleLog.renderTitleToVersion();
-    let qBranches;
+    let qTags = [];
+    let qBranches = [];
     try {
       // if provided, add username and password to the svn options
       if (clargs.argv.svnOptionsUsername && clargs.argv.svnOptionsPassword) {
         svnOptions.username = clargs.argv.svnOptionsUsername;
         svnOptions.password = clargs.argv.svnOptionsPassword;
       }
+      const svnToVersionTagChoices = await promises.svnListPromise(`${appRoot}/branches`, svnOptions);
+      // const bHasPrevious = (Object.prototype.hasOwnProperty.call(svnToVersionTagChoices, 'entry'));
+      if (Array.isArray(svnToVersionTagChoices.list.entry)) {
+        qTags = svnToVersionTagChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-10).map((b) => 'tags/'.concat(b.name));
+      } else if (svnToVersionTagChoices.list.entry) {
+        qTags.push('tags/'.concat(svnToVersionTagChoices.list.entry.name));
+      } else {
+        qTags = [];
+      }
+
       const svnToVersionBranchesChoices = await promises.svnListPromise(`${appRoot}/branches`, svnOptions);
-      const bHasPrevious = (Object.prototype.hasOwnProperty.call(svnToVersionBranchesChoices, 'entry'));
-      if (bHasPrevious) {
+      // const bHasPrevious = (Object.prototype.hasOwnProperty.call(svnToVersionBranchesChoices, 'entry'));
+      if (Array.isArray(svnToVersionBranchesChoices.list.entry)) {
         qBranches = svnToVersionBranchesChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-10).map((b) => 'branches/'.concat(b.name));
-      } else qBranches = [];
+      } else if (svnToVersionBranchesChoices.list.entry) {
+        qBranches.push('branches/'.concat(svnToVersionBranchesChoices.list.entry.name));
+      } else {
+        qBranches = [];
+      }
     } catch (error) {
       consoleLog.logThisLine('Can\'t login into SVN. Provide them on the command line, at least once, using --svnOptionsUsername [username] --svnOptionsPassword [password] ', 'red');
       process.exit(0);
     }
-    const qarrToVersion = qBranches;
+
+    let qarrToVersion = [];
+    if (qTags.length > 0) {
+      qarrToVersion = qarrToVersion.concat(qTags);
+    }
+    if (qBranches.length > 0) {
+      qarrToVersion = qarrToVersion.concat(qBranches);
+    }
     qarrToVersion.push('trunk');
     const questionsToVersion = [
       {
@@ -264,7 +286,7 @@ async function getTag(url, tagNumberinPreviousSolution, componentEntry) {
 
   const currentResultInfo = await promises.svnInfoPromise(`"${url}"`);
   const currentRevisionNumber = currentResultInfo.entry.commit.$.revision;
-  const currentTagNumber = bSolutionOrComponentOnTrunk ? 'trunk' : arrTagsOrBranches.find((i) => i.name === arrTagsOrBranchesSorted[indexCurrent]).name;
+  const currentTagNumber = bSolutionOrComponentOnTrunk ? 'trunk' : actualSvnTrunkBranchOrTagNumberPart; // arrTagsOrBranches.find((i) => i.name === arrTagsOrBranchesSorted[indexCurrent]).name;
   const currentRelativeUrl = currentResultInfo.entry['relative-url'].replaceAll('^/', '');
   const currentTagUrl = url;
   const currentTagBaseUrl = sListURL;
