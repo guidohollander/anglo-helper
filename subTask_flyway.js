@@ -121,6 +121,11 @@ async function perform(componentEntry) {
         credentialsString = `-user=${state.profile.flywayDatabaseUsername} -password=${state.profile.flywayDatabasePassword}`;
       }
       const flywayCommand = `"${state.profile.flywayPath}flyway" ${flywayAction} -color=always -locations=${flywayLocations} -schemas=${flywayDatabaseSchema} -table=${flywayTable} -url=${flywayDatabaseConnectionString} ${credentialsString}`;
+
+      console.log('---------------------------------------------------------------------------------------------------------');
+      console.log(`Command: ${flywayCommand}`);
+      console.log('---------------------------------------------------------------------------------------------------------');
+
       await updateVariablesInSqlFiles(componentEntry, FlywayDir);
       let flywayResult = await util.execShellCommand(flywayCommand);
       flywayResult = flywayResult.replace(/^Database: .*\(Microsoft SQL Server [\d]+\.[\d]+\)/m, '');
