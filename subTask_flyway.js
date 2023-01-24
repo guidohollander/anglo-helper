@@ -122,19 +122,20 @@ async function perform(componentEntry) {
       }
       const flywayCommand = `"${state.profile.flywayPath}flyway" ${flywayAction} -color=always -locations=${flywayLocations} -schemas=${flywayDatabaseSchema} -table=${flywayTable} -url=${flywayDatabaseConnectionString} ${credentialsString}`;
 
-      console.log('---------------------------------------------------------------------------------------------------------');
-      console.log(`Command: ${flywayCommand}`);
-      console.log('---------------------------------------------------------------------------------------------------------');
-
       await updateVariablesInSqlFiles(componentEntry, FlywayDir);
       let flywayResult = await util.execShellCommand(flywayCommand);
-      flywayResult = flywayResult.replace(/^Database: .*\(Microsoft SQL Server [\d]+\.[\d]+\)/m, '');
-      flywayResult = flywayResult.replace(/^Flyway Community Edition .*/m, '');
-      flywayResult = flywayResult.replace(/^Current version of schema .*/m, '');
-      flywayResult = flywayResult.trim();
+      // flywayResult = flywayResult.replace(/^Database: .*\(Microsoft SQL Server [\d]+\.[\d]+\)/m, '');
+      // flywayResult = flywayResult.replace(/^Flyway Community Edition .*/m, '');
+      // flywayResult = flywayResult.replace(/^Current version of schema .*/m, '');
+      // flywayResult = flywayResult.trim();
       if (flywayResult.includes('No migration necessary')) {
         consoleLog.logThisLine('[F]', 'gray');
       } else {
+        consoleLog.logNewLine('', 'white');
+        consoleLog.logNewLine('---------------------------------------------------------------------------------------------', 'cyan');
+        consoleLog.logNewLine(`${flywayCommand}`, 'cyan');
+        consoleLog.logNewLine('---------------------------------------------------------------------------------------------', 'cyan');
+        consoleLog.logNewLine('', 'white');
         anglo.memorable('[F]', state.arrFlywayUpdatedCollection, componentEntry, flywayResult, 'green');
         if (state.profile.verbose) {
           consoleLog.logNewLine('', 'white');
