@@ -315,7 +315,7 @@ async function getTag(url, tagNumberinPreviousSolution, componentEntry) {
       if (!componentEntry && clargs.argv.tagReportSolutionMajorIncrement) {
         majorOrMinor = 'major';
       }
-      futureTagNumber = arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1].replace(/[^0-9.]/g, '');
+      futureTagNumber = semver.coerce(arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1].replace(/[^0-9.]/g, ''));
       const storeTagNumber = futureTagNumber;
       if (clargs.argv.tagReportMinimumSemVer) {
         if (semver.lt(storeTagNumber, clargs.argv.tagReportMinimumSemVer)) {

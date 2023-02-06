@@ -12,7 +12,7 @@ async function perform() {
   let qTags = [];
   if (Array.isArray(svnToVersionTagsChoices.list.entry)) {
     qTags = svnToVersionTagsChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'tags/'.concat(b.name));
-  } else {
+  } else if (Object.prototype.hasOwnProperty.call(svnToVersionTagsChoices.list, 'entry')) {
     qTags.push('tags/'.concat(svnToVersionTagsChoices.list.entry.name));
   }
 
@@ -20,7 +20,7 @@ async function perform() {
   const svnToVersionBranchesChoices = await promises.svnListPromise(`${state.oSVNInfo.appRoot}/branches`);
   if (Array.isArray(svnToVersionBranchesChoices.list.entry)) {
     qBranches = svnToVersionBranchesChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-0).map((b) => 'branches/'.concat(b.name));
-  } else {
+  } else if (Object.prototype.hasOwnProperty.call(svnToVersionBranchesChoices.list, 'entry')) {
     qBranches.push('branches/'.concat(svnToVersionBranchesChoices.list.entry.name));
   }
   let qarrToVersion = [];

@@ -32,7 +32,7 @@ async function getAppUpdateInfo() {
   const localVersion = pjson.version;
   const remoteVersion = await getRemoteAppVersion();
   return {
-    updateAvailable: semver.gt(remoteVersion, localVersion),
+    updateAvailable: semver.gt(semver.coerce(remoteVersion), localVersion),
     localVersion,
     remoteVersion,
   };

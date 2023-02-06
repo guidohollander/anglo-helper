@@ -28,13 +28,14 @@ async function perform(componentEntry) {
     if (state.arrComponents.indexOf(componentEntry.componentName) === -1) {
       let bComponentLevelMajorTagNumberIncrease = false; // might be modified below
       const cloneSvnOptions = JSON.parse(JSON.stringify(svn.svnOptions));
-      if (clargs.argv.tagReportMode === 'solution' && bExternalComponent) {
+      // if (clargs.argv.tagReportMode === 'solution' && bExternalComponent) {
+      if (bInternalComponent) {
         if (thisComponent.solutionPrevious) {
           cloneSvnOptions.revision = `${thisComponent.solutionPrevious.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;
         } else {
           cloneSvnOptions.revision = `1:${thisComponent.current.tagRevisionNumber}`;
         }
-      } else if (clargs.argv.tagReportMode === 'component' || bInternalComponent) {
+      } else if (bExternalComponent) {
         if (thisComponent.previous) {
           cloneSvnOptions.revision = `${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;
         } else {
@@ -79,11 +80,11 @@ async function perform(componentEntry) {
                   issueStatus = theIssue.data.fields.status.name;
                   // customfield_10008 of the issue contains the epic link issue
                   epicLink='';
-                  if (theIssue.data.fields.customfield_10008) {
-                    // eslint-disable-next-line no-await-in-loop
-                    theEpicLink = await jira.getJiraIssue(state.profile.jiraUsername, state.profile.jiraPassword, theIssue.data.fields.customfield_10008);
-                    epicLink = theEpicLink.data.fields.summary;
-                  }
+                  // if (theIssue.data.fields.customfield_10008) {
+                  //   // eslint-disable-next-line no-await-in-loop
+                  //   // 20230203 theEpicLink = await jira.getJiraIssue(state.profile.jiraUsername, state.profile.jiraPassword, theIssue.data.fields.customfield_10008);
+                  //   // 20230203epicLink = theEpicLink.data.fields.summary;
+                  // }
                 } catch (error) {
                   issueSummary = 'could not be retrieved due to error';
                   issueStatus = 'could not be retrieved due to error';
@@ -143,7 +144,8 @@ async function perform(componentEntry) {
               if (thisComponent.previous.tagNumber.split('.').length > 3) {
                 thisComponent.previous.tagNumber = thisComponent.previous.tagNumber.split('.').splice(0, 3).join('.');
               }
-              derivedNewTagNumber = semver.inc(thisComponent.previous.tagNumber, bComponentLevelMajorTagNumberIncrease ? 'minor' : 'patch');
+              //if (!semver.valid(thisComponent.previous.tagNumber) thisComponent.previous.tagNumber.split('.').length
+              derivedNewTagNumber = semver.inc(semver.coerce(thisComponent.previous.tagNumber), bComponentLevelMajorTagNumberIncrease ? 'minor' : 'patch');
               // if specified, increase component number to given tagReportMinimumSemVer
               if (clargs.argv.tagReportMinimumSemVer) {
                 if (semver.lt(derivedNewTagNumber, clargs.argv.tagReportMinimumSemVer)) {
