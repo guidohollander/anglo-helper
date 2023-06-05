@@ -13,20 +13,23 @@ const consoleLog = require('./consoleLog');
 const db = require('./db');
 const promises = require('./promises');
 const state = require('./state');
+const subTaskCheckSpecifics = require('./subTask_checkSpecifics');
 const subTaskDeploymentCheck = require('./subTask_deploymentCheck');
 const subTaskCompareSpecific = require('./subTask_compareSpecific');
 const subTaskFlyway = require('./subTask_flyway');
 const subTaskSelect = require('./subTask_select');
+const subTaskClone = require('./subTask_clone');
 const subTaskSwitch = require('./subTask_switch');
 const subTaskTagReport = require('./subTask_tagReport');
 const subTaskTagReportExecution = require('./subTask_tagReportExecution');
-const subTaskGenerateFlywaywBatch = require('./subTask_generateFlywaywBatch');
+const subTaskGenerateMarkdown = require('./subTask_generateMarkdown');
 const subTaskUpdate = require('./subTask_update');
 const svn = require('./svn');
-const arrSolutions = require('./solutions.json');
+const comsclient = require('./coms');
 const pjson = require('./package.json');
 const componentToTrunk = require('./subTask_componentToTrunk');
 const util = require('./util');
+const { oAppContext } = require('./state');
 
 // app context
 state.oAppContext = anglo.getProbableApp();
@@ -43,7 +46,7 @@ function getComponentName(componentBaseFolder) {
   return { fullComponentName, bareComponentName };
 }
 function catchKeyPress() {
-  if (!clargs.argv.componentToTrunk && !clargs.argv.componentsToTrunk && !clargs.argv.componentToTag && !clargs.argv.select) { // only allow during regular, long-running entry (component / project) based operations
+  if (!clargs.argv.componentToTrunk && !clargs.argv.componentsToTrunk && !clargs.argv.componentToTag && !clargs.argv.select && !clargs.argv.clone) { // only allow during regular, long-running entry (component / project) based operations
     readline.emitKeypressEvents(process.stdin);
     if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
     process.stdin.on('keypress', (chunk, key) => {
@@ -148,7 +151,7 @@ async function main() {
       state.profile.flyway = false;
     }
     if (clargs.argv.verbose) state.profile.verbose = clargs.argv.verbose;
-    if (clargs.argv.tagReport || clargs.argv.tagReportExecution || clargs.argv.deploymentCheck) {
+    if (clargs.argv.tagReport || clargs.argv.tagReportExecution || clargs.argv.deploymentCheck || clargs.argv.checkSpecifics) {
       state.profile.autoSwitch = false;
       state.profile.autoUpdate = false;
       state.profile.flyway = false;
@@ -159,49 +162,72 @@ async function main() {
       state.profile.autoSwitch = true;
       state.profile.autoUpdate = true;
     }
-
+    if (clargs.argv.generateMarkdown) { // toggle other profile items off when explicitly setting flyway switch
+      state.profile.flyway = clargs.argv.flyway;
+      state.profile.autoSwitch = false;
+      state.profile.autoUpdate = false;
+      state.profile.compareSpecific = false;
+      state.profile.flyway = false;
+    }
     // gather information about current solution for the tag report
-    state.currentSolution = arrSolutions.find((s) => s.name === state.oSVNInfo.svnApp);
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    state.arrSolutions = require(`${path.dirname(state.workingCopyFolder)}/.anglo-helper/solutions.json`);
+    state.currentSolution = state.arrSolutions.find((s) => s.name === state.oSVNInfo.svnApp);
+
     // state.oSVNInfo.remoteRepo = 'https://svn.bearingpointcaribbean.com/svn/MTS_ANGUILLA/tags/2.0.0';
     state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionFrom);
     state.prettySVNUsername = await svn.getAuthUser();
 
+    comsclient.client.publish(`${comsclient.mqttTopic}${state.currentSolution.customerCode}`, JSON.stringify(`{implementation: '${state.currentSolution.customerCode}', user: '${state.prettySVNUsername}}'`, null, '\t'));
+
+    // implicitly enable checkSpecifics when update is set to true in profile
+    if (state.profile.autoUpdate && state.oSolution.current.relativeUrl === 'trunk') {
+      clargs.argv.checkSpecifics = true;
+    }
     state.startingTime = Date.now();
     let arrAll = [];
     await consoleLog.showHeader();
+    // check and if necessary create solution profile in parent folder
+    let fn = `${path.dirname(state.workingCopyFolder)}/.anglo-helper`;
+    if (!fs.existsSync(fn)) {
+      fs.mkdirSync(fn);
+    }
+    const solutionsProfileFileName = path.normalize(`${fn}/solutions.json`);
+    if (!fs.existsSync(solutionsProfileFileName)) {
+      fs.writeFileSync(solutionsProfileFileName, JSON.stringify(state.arrSolutions, null, 2));
+    } else {
+      // check the contents / paths in the existing solutions.json file
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const sol of state.arrSolutions) {
+        if (sol.path && !fs.existsSync(sol.path)) {
+          // eslint-disable-next-line no-console
+          console.log(`The location ${sol.path} as specified in ${fn}/solutions.json does not exist. Please update or empty the path for each solution trunk`);
+          process.exit(1);
+        }
+      }
+    }
     // get externals
     consoleLog.logNewLine('', 'gray');
     consoleLog.logNewLine(`getting externals from current solution ${state.oSolution.current.relativeUrl} [rev:${state.oSolution.current.tagRevisionNumber}]`, 'gray');
-    if (clargs.argv.useCache) {
-      const fn = `${state.workingCopyFolder}cached_externals_raw.json`;
-      if (!fs.existsSync(fn)) {
-        state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
-        fs.writeFileSync(fn, JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
-      } else {
-        // eslint-disable-next-line import/no-dynamic-require, global-require
-        state.arrSVNExternalsCurrentSolutionTag = require(fn);
-      }
-    } else {
-      state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
-    }
-    if (clargs.argv.tagReport) {
+    state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
+    if (clargs.argv.tagReport && !clargs.argv.generateMarkdown) {
       if (state.oSolution.previous) {
         consoleLog.logNewLine(`getting externals from previous solution tags/${state.oSolution.previous.tagNumber} [rev:${state.oSolution.previous.tagRevisionNumber}]`, 'gray');
-        state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl        
+        state.arrSVNExternalsPreviousSolutionTag = await svn.getArrExternals(state.oSolution.previous.tagUrl); // oPreviousSolutionTag.tagUrl
         consoleLog.logNewLine(`determine difference between ${state.oSolution.previous.relativeUrl} and ${state.oSolution.current.relativeUrl} rev:{${state.oSolution.previous.tagRevisionNumber}:${state.oSolution.current.tagRevisionNumber}}`, 'gray');
       }
       // // difference
       // state.arrSVNExternalsPreviousSolutionTag = [];
       state.arrExt = state.arrSVNExternalsCurrentSolutionTag.filter((x) => !state.arrSVNExternalsPreviousSolutionTag.includes(x));
       // intersection: result can be used as filter on internals since we want ALL internals except for the ones that correspond with unmodified tagged components
-      const arrIntFilter = state.arrSVNExternalsCurrentSolutionTag.filter((x) => state.arrSVNExternalsPreviousSolutionTag.includes(x));
+      state.arrIntFilter = state.arrSVNExternalsCurrentSolutionTag.filter((x) => state.arrSVNExternalsPreviousSolutionTag.includes(x));
       if (clargs.argv.writeJsonFiles) {
         fs.writeFileSync('./current_externals_raw.json', JSON.stringify(state.arrSVNExternalsCurrentSolutionTag, null, 2));
         fs.writeFileSync('./previous_externals_raw.json', JSON.stringify(state.arrSVNExternalsPreviousSolutionTag, null, 2));
         fs.writeFileSync('./externals_difference_raw.json', JSON.stringify(state.arrExt, null, 2));
-        //fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrIntFilter, null, 2));
+        fs.writeFileSync('./externals_insersection_raw.json', JSON.stringify(state.arrIntFilter, null, 2));
       }
-      arrIntFilter.forEach((entry) => {
+      state.arrIntFilter.forEach((entry) => {
         const tidied = anglo.tidyArrayContent(entry);
         if (tidied.name !== '') {
           state.arrInternalsFilter.push({
@@ -222,6 +248,47 @@ async function main() {
         });
       }
     });
+
+    if (clargs.argv.checkSpecifics) {
+      const relevantSolutions = state.arrSolutions.filter((s) => s.class === 'MxS');
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const sol of relevantSolutions) {
+        sol.externals = await svn.getArrExternals(sol.url);
+        sol.tidiedexternals = [];
+        sol.externals.forEach((entry) => {
+          const tidied = anglo.tidyArrayContent(entry);
+          // for componentBaseFolder. If domain-specific, keep first 3, else keep first 4 parts
+          const partsToKeep = (tidied.name.toLowerCase().startsWith('dsc')) ? 4 : 5;
+          if (tidied.name !== '') {
+            const component = getComponentName(decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'));
+
+            sol.tidiedexternals.push({
+              key: tidied.name,
+              path: decodeURI(tidied.path),
+              componentBaseFolder: decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/'),
+              componentRoot: state.oSVNInfo.baseURL + decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/').replace(component.bareComponentName, '').replace(/^\//, ''),
+              componentName: component.fullComponentName,
+              bareComponentName: component.bareComponentName,
+              relativeUrl: tidied.path.replaceAll(`${decodeURI(tidied.path.split('/').slice(0, partsToKeep).join('/')).replace('//', '/')}/`, '').split('/').slice(0, -1).join('/')
+                .split('/')
+                .splice(-2)
+                .join('/'),
+              isExternal: true,
+              isCoreComponent: !tidied.name.toLowerCase().includes('interface def'),
+              isInterfaceDefinition: tidied.name.toLowerCase().includes('interface def'),
+              isSpecific: tidied.name.toLowerCase().includes('specific'),
+              isDomainSpecific: tidied.name.toLowerCase().startsWith('dsc'),
+              isSolutionComponent: tidied.name.toLowerCase().startsWith('sc'),
+              isTagged: decodeURI(tidied.path).toLocaleLowerCase().includes('/tags/'),
+              isBranched: decodeURI(tidied.path).toLocaleLowerCase().includes('/branches/'),
+              isTrunk: decodeURI(tidied.path).toLocaleLowerCase().includes('/trunk/'),
+              isFrontend: tidied.name === 'FRONTEND',
+            });
+          }
+        });
+      }
+    }
+
     const arrExternals = [];
     state.arrExt.forEach((entry) => {
       const tidied = anglo.tidyArrayContent(entry);
@@ -257,19 +324,7 @@ async function main() {
       fs.writeFileSync('./externals.json', JSON.stringify(arrExternals, null, 2));
     }
     // get internals
-    let lsInternals;
-    if (clargs.argv.useCache) {
-      const fn = `${state.workingCopyFolder}cached_internals_raw.json`;
-      if (!fs.existsSync(fn)) {
-        lsInternals = await promises.svnListPromise(state.oSolution.current.tagUrl);
-        fs.writeFileSync(fn, JSON.stringify(lsInternals, null, 2));
-      } else {
-        // eslint-disable-next-line global-require, import/no-dynamic-require
-        lsInternals = require(fn);
-      }
-    } else {
-      lsInternals = await promises.svnListPromise(state.oSolution.current.tagUrl);
-    }
+    const lsInternals = await svn.getInternals(state.oSolution.current.tagUrl);
     const arrInternals = [];
     consoleLog.logNewLine('getting internals', 'gray');
     lsInternals.list.entry.forEach((entry) => {
@@ -316,7 +371,7 @@ async function main() {
     arrAll = arrExternals.concat(arrInternals);
     // tagreportexecution: limit the projects to those stored in the tagreport
     if (clargs.argv.tagReportExecution) {
-      const fn = clargs.argv.tagReportExecution;
+      fn = clargs.argv.tagReportExecution;
       if (fs.existsSync(path.normalize(state.workingCopyFolder + fn))) {
         // eslint-disable-next-line global-require, import/no-dynamic-require
         state.tagReportArray = require(path.normalize(state.workingCopyFolder + fn));
@@ -369,25 +424,7 @@ async function main() {
       fs.writeFileSync('./all.json', JSON.stringify(arrAll, null, 2));
     }
     let progressCounter = 1;
-    const processLookupResultList = await promises.processLookup({ command: 'Be Informed AMS.exe', psargs: state.app });
-    processLookupResultList.forEach((process) => {
-      // use -data argument to be more specific in determining when be informed is running
-      if (process) {
-        if (JSON.stringify(process.arguments).toLowerCase().includes('-data')) {
-          if (path.normalize(`${process.arguments[process.arguments.indexOf('-data') + 1]}/`).toLocaleLowerCase() === path.normalize(state.workingCopyFolder).toLowerCase()) {
-            // there's a process BI and the argument -data is identical to the working copy folder of the current path
-            if (!clargs.argv.forceSVN) {
-              state.beInformedRunning = true;
-              state.hasMinDataArgument = true;
-            }
-          }
-        } else if (!clargs.argv.forceSVN) {
-          // there's a process BI, but there's no -data argument.
-          state.beInformedRunning = true;
-          state.hasMinDataArgument = false;
-        }
-      }
-    });
+    await util.findBeInformedProcess();
     const actions = [];
     if (!clargs.argv.tagReport && !clargs.argv.tagReportExecution) { actions.push('   [M]issing project detection'); }
     if (state.profile.autoSwitch && state.beInformedRunning) { actions.push('   [Š]witch detection'); }
@@ -400,6 +437,7 @@ async function main() {
     if (state.profile.flyway && (clargs.argv.flywayValidateOnly || clargs.argv.flywayRepairOnly) && state.profile.flywayReplaceVariables) { actions.push('   [F]lyway val/rep only (+vr)'); }
     if (state.profile.compareSpecific) { actions.push('   [C]ompare specific'); }
     if (clargs.argv.deploymentCheck) { actions.push('   [D]eployment check'); }
+    if (clargs.argv.checkSpecifics) { actions.push('   [P]Check sPecifics'); }
     if (clargs.argv.tagReport) { actions.push('   [T]ag report'); }
     if (clargs.argv.tagReportExecution) { actions.push('   [T]ag report execution'); }
     consoleLog.showBIRunningWarning(state.beInformedRunning);
@@ -420,6 +458,7 @@ async function main() {
     let dir;
     // loop all folder in arrAll
     const bEntryAction = !clargs.argv.componentToTrunk && !clargs.argv.componentsToTrunk && !clargs.argv.componentToTag;
+
     if (bEntryAction) {
       // eslint-disable-next-line no-restricted-syntax
       for await (const entry of arrAll) {
@@ -444,6 +483,16 @@ async function main() {
             // const switchPath = !entry.isFrontend ? state.oSVNInfo.baseURL + entry.path : entry.path;
             const switchPath = state.oSVNInfo.baseURL + entry.path;
             entry.match = (switchPath.toLowerCase() === decodeURI(resultInfo.entry.url).toLowerCase());
+
+            // if component is on trunk, check if latest log entry is a tag action
+            // if (entry.isTrunk && entry.isExternal) {
+            //   const logList = await promises.svnLogPromise(`${entry.componentBaseFolder}`, svn.svnOptions);
+            //   let logListEntries = logList.logentry;
+            //   if (logListEntries && logListEntries.length > 0) {
+            //     console.log(logListEntries);
+            //   }
+            // }
+
             // switch if autoswtich enabled local and remote do not match
             if (state.profile.autoSwitch && (!entry.isInternal || clargs.argv.select)) {
               await subTaskSwitch.perform(entry);
@@ -474,6 +523,12 @@ async function main() {
             } else {
               // deploymentCheck not enabled
             }
+            // perform check of specifics files
+            if (clargs.argv.checkSpecifics) {
+              await subTaskCheckSpecifics.perform(entry);
+            } else {
+              // checkSpecifics not enabled
+            }
             // create a jira tag report for each component
             if (clargs.argv.tagReport) {
               await subTaskTagReport.perform(entry);
@@ -481,11 +536,11 @@ async function main() {
               // tagReport not enabled
             }
             if (clargs.argv.tagReportExecution) {
-              await subTaskTagReportExecution.perform(entry);
+              await subTaskTagReportExecution.performComponent(entry);
             } // tagReport exectuion not enabled
-            if (clargs.argv.generateFlywaywBatch) {
-              await subTaskGenerateFlywaywBatch.perform(entry);
-            } // generateFlywaywBatch not enabled
+            if (clargs.argv.generateMarkdown) {
+              await subTaskGenerateMarkdown.performComponent(entry, state.arrTagReportCollection.find((s) => s.bareComponentName === entry.bareComponentName));
+            } // generateMarkdown not enabled
           } else if (!clargs.argv.tagReport && !clargs.argv.tagReportExecution) {
             anglo.memorable('[M]', state.arrMissingCollection, entry, state.oSVNInfo.baseURL + entry.path.replace(/^\//, '').key, 'green');
             dir = state.workingCopyFolder + entry.key;
@@ -510,10 +565,16 @@ async function main() {
     } else if (clargs.argv.componentToTag) {
       await componentToTrunk.performTrunkToTag(arrAll);
     }
-    if (clargs.argv.tagReportExecution && !clargs.argv.dryRun) {
+    if (clargs.argv.tagReportExecution) {
       // to update all externals to the newly created tags
       await subTaskTagReportExecution.batchUpdateExternals();
+      await subTaskTagReportExecution.performSolution();
     }
+    if (clargs.argv.generateMarkdown) {
+      await subTaskGenerateMarkdown.performImplementation(state, arrAll, state.arrTagReportCollection);
+      await subTaskGenerateMarkdown.performCustomer(state);
+    } // generateMarkdown not enabled
+
     const SummaryCount = (state.arrMissingCollection.length + state.arrSwitchUpdateCollection.length + state.arrSVNUpdatedCollection.length + state.arrFlywayUpdatedCollection.length + state.arrCompareSpecificUpdateCollection.length + state.arrSVNPotentialUpdateCollection.length + state.arrDeploymentCheckCollection.length + state.arrTagReportCollection.length + state.arrUnlinkedFolderCollection.length);
     if (SummaryCount > 0) {
       state.exitCode = 1;
@@ -762,8 +823,8 @@ async function prequal() {
       {
         type: 'input',
         name: 'compareSpecificRootFolder',
-        default: `c:/repo/${state.app}/`,
-        message: `Specific compare: Please provide the path to the root of another workspace folder. Use forward slashes, for example 'c:/repo/${state.app}/'`,
+        default: `d:/repo/${state.app}/`,
+        message: `Specific compare: Please provide the path to the root of another workspace folder. Use forward slashes, for example 'd:/repo/${state.app}/'`,
         when: (answers) => answers.compareSpecific,
       },
       {
@@ -810,6 +871,8 @@ async function prequal() {
   } else if (clargs.argv.select) {
     await subTaskSelect.perform();
     main();
+  } else if (clargs.argv.clone) {
+    await subTaskClone.perform();
   } else {
     if (Object.prototype.hasOwnProperty.call(clargs.argv, 'profile') && (clargs.argv.profile.length > 0)) {
       // eslint-disable-next-line import/no-dynamic-require, global-require

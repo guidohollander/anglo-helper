@@ -1,3 +1,4 @@
+const path = require('path');
 const clargs = require('./arguments');
 const state = require('./state');
 const util = require('./util');
@@ -108,6 +109,8 @@ async function showHeader() {
   logNewLine(`${s}:${giveSpace(s, sp)}${embrace(state.app)}`, 'cyan');
   s = 'profile';
   logNewLine(`${s}:${giveSpace(s, sp)}[${state.profile.filename}: [S]witch]:${state.profile.autoSwitch} | [U]pdate:${state.profile.autoUpdate} | [F]lyway:${state.profile.flyway} | [C]ompare specific:${state.profile.compareSpecific}`, 'cyan');
+  s = 'über profile';
+  logNewLine(`${s}:${giveSpace(s, sp)}${embrace(`${path.dirname(state.workingCopyFolder)}/.anglo-helper/solutions.json`)}`, 'cyan');
   s = `${state.oAppContext.descriptiveName.toLowerCase()} version`;
   // logNewLine(`${s}:${giveSpace(s, sp)}${embrace(state.oAppContext.version)}`, 'cyan');
 

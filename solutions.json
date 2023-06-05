@@ -2,41 +2,66 @@
     {
         "name": "MBS_ANGUILLA",
         "functionalName": "MBS Anguilla",
-        "customer": "ANGUILLA"
+        "customer": "ANGUILLA",
+        "customerCode": "aia_mbs",
+        "class": "MxS",
+        "url": "https://svn.bearingpointcaribbean.com/svn/MBS_ANGUILLA/trunk"
     },
     {
         "name": "MTS_ANGUILLA",
         "functionalName": "MTS Anguilla",
-        "customer": "ANGUILLA"
+        "customer": "ANGUILLA",
+        "customerCode": "aia_mts",
+        "class": "MxS",
+        "url": "https://svn.bearingpointcaribbean.com/svn/MTS_ANGUILLA/trunk"
+        
     },
     {
         "name": "ONLINE_ANGUILLA",
         "functionalName": "Online Anguilla",
-        "customer": "ANGUILLA"
+        "customer": "ANGUILLA",
+        "customerCode": "aia_online",
+        "class": "ONLINE",
+        "url": "https://svn.bearingpointcaribbean.com/svn/ONLINE_ANGUILLA/trunk"
     },    
     {
         "name": "MTS_SKN",
         "functionalName": "MTS Saint Kitts and Nevis",
-        "customer": "SKN"
+        "customer": "SKN",
+        "customerCode": "skn_mts",
+        "class": "MxS",
+        "url": "https://svn.bearingpointcaribbean.com/svn/MTS_SKN/trunk"
     },
     {
         "name": "ONLINE_SKN",
         "functionalName": "Online Saint Kitts and Nevis",
-        "customer": "SKN"
+        "customer": "SKN",
+        "customerCode": "skn_online",
+        "class": "ONLINE",
+        "url": "https://svn.bearingpointcaribbean.com/svn/ONLINE_SKN/trunk"
     },
     {
         "name": "BDSU_MTS",
         "functionalName": "MTS Belastingdienst Suriname",
-        "customer": "Belastingdienst Suriname"
+        "customer": "Belastingdienst Suriname",
+        "customerCode": "bdsu",
+        "class": "MxS",
+        "url": "https://svn.bearingpointcaribbean.com/svn/BDSU_MTS/trunk"
     },
     {
         "name": "MTS_GRENADA",
         "functionalName": "MTS Grenada",
-        "customer": "GRENADA"
+        "customer": "GRENADA",
+        "customerCode": "gd_mts",
+        "class": "MxS",
+        "url": "https://svn.bearingpointcaribbean.com/svn/MTS_GRENADA/trunk"
     },
     {
         "name": "ONLINE_GD",
         "functionalName": "Online Grenada",
-        "customer": "GRENADA"
+        "customer": "GRENADA",
+        "customerCode": "gd_online",
+        "class": "ONLINE",
+        "url": "https://svn.bearingpointcaribbean.com/svn/ONLINE_GD/trunk"
     }            
 ]

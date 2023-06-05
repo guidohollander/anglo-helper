@@ -20,6 +20,22 @@ module.exports = {
       description: 'switch to a selected version',
       type: 'boolean',
     })
+    .option('clone', {
+      description: 'clone a folder and give it a name that you want',
+      type: 'string',
+    })
+    .option('clone', {
+      description: 'clone a folder and give it a name that you want',
+      type: 'string',
+    })
+    .option('cloneName', {
+      description: "option of --clone, name of the target folder (will be overwritten!), i.e. --cloneName 'DSC Small New Tax Type'",
+      type: 'string',
+    })
+    .option('cloneReplacements', {
+      description: "option of --clone, comma separated list of replacements, each unit separated by an equals character, i.e. --cloneReplacements 'isl=nst,interim stabilization levy=new small tax type'",
+      type: 'string',
+    })
     .option('componentToTrunk', {
       description: 'switch a selected, tagged component to trunk and update its svn:external definition. Can only be used on solution trunk',
       type: 'boolean',
@@ -27,9 +43,13 @@ module.exports = {
     .option('componentsToTrunk', {
       description: 'switch a selected, tagged set of components to trunk and update their svn:external definition. Can only be used on solution trunk',
       type: 'boolean',
-    })    
+    })
     .option('componentToTag', {
       description: 'switch a selected component on trunk to an existing tag and update its svn:external definition. Can only be used on solution trunk',
+      type: 'boolean',
+    })
+    .option('limitToUnchanged', {
+      description: 'additional option for --componentToTag. Limit the list of components to only the components which do not have commited changes on the trunk yet. These components can be safely switched back to the latest tag.',
       type: 'boolean',
     })
     .option('verbose', {
@@ -52,6 +72,10 @@ module.exports = {
     })
     .option('deploymentCheck', {
       description: 'write intermediate json files, like externals.jon, internals.json and all.json',
+      type: 'boolean',
+    })
+    .option('checkSpecifics', {
+      description: 'check reference to specific bixml files from core and interface project in alle known implementations',
       type: 'boolean',
     })
     .option('tagReport', {
@@ -83,7 +107,7 @@ module.exports = {
     .option('tagReportMinimumSemVer', {
       describe: 'Minimum component semantic version number, ie when set to "2.0.0" and component is 1.8.0, it will be increment to 2.0.0',
       type: 'string',
-      default: '2.0.0',
+      default: '1.1.0',
     })
     .option('tagReportExecutionMode', {
       describe: 'execution of the tag report: either component-only or solution-only',
@@ -134,8 +158,8 @@ module.exports = {
       description: 'update potential updates from the last run',
       type: 'boolean',
     })
-    .option('generateFlywaywBatch', {
-      description: 'for every core component, generate an .anglo-helper folder with a af_fw.bat file',
+    .option('generateMarkdown', {
+      description: 'for every core component, generate markdown (for obsidian)',
       type: 'boolean',
     })
     .option('component', {

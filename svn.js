@@ -1,5 +1,6 @@
 const spawn = require('await-spawn');
 const inquirer = require('inquirer');
+const path = require('path');
 const semver = require('semver');
 const fs = require('fs');
 // const { profile } = require('console');
@@ -11,10 +12,40 @@ const util = require('./util');
 // public variables]
 const svnOptions = { trustServerCert: true };
 async function getArrExternals(url) {
-  const svnExternals = await promises.svnPropGetPromise('svn:externals', `${url}`, svnOptions);
+  let svnExternals;
+  if (clargs.argv.useCache) {
+    const fn = `${path.dirname(state.workingCopyFolder)}/.anglo-helper/${util.urlToFileName(url)}_cached_externals_raw.json`;
+    if (!fs.existsSync(fn)) {
+      // state.arrSVNExternalsCurrentSolutionTag = await svn.getArrExternals(state.oSolution.current.tagUrl);
+      svnExternals = await promises.svnPropGetPromise('svn:externals', `${url}`, svnOptions);
+      fs.writeFileSync(fn, JSON.stringify(svnExternals, null, 2));
+    } else {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      svnExternals = require(fn);
+    }
+  } else {
+    svnExternals = await promises.svnPropGetPromise('svn:externals', `${url}`, svnOptions);
+  }
   return svnExternals.target.property._.split('\r\n');
 }
-
+async function getInternals(url) {
+  let svnInternals;
+  if (clargs.argv.useCache) {
+    const fn = `${path.dirname(state.workingCopyFolder)}/.anglo-helper/${util.urlToFileName(url)}_cached_internals_raw.json`;
+    if (!fs.existsSync(fn)) {
+      // state.arrSVNInternalsCurrentSolutionTag = await svn.getArrInternals(state.oSolution.current.tagUrl);
+      svnInternals = await promises.svnListPromise(url, svnOptions);
+      fs.writeFileSync(fn, JSON.stringify(svnInternals, null, 2));
+    } else {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      svnInternals = require(fn);
+    }
+  } else {
+    svnInternals = await promises.svnListPromise(url, svnOptions);
+    // lsInternals = await promises.svnListPromise(state.oSolution.current.tagUrl);
+  }
+  return svnInternals; // .target.property._.split('\r\n');
+}
 function capitalizeWords(arr) {
   return arr.map((element) => element.charAt(0).toUpperCase() + element.slice(1).toLowerCase());
 }
@@ -96,7 +127,7 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
         svnOptions.username = clargs.argv.svnOptionsUsername;
         svnOptions.password = clargs.argv.svnOptionsPassword;
       }
-      const svnToVersionTagChoices = await promises.svnListPromise(`${appRoot}/branches`, svnOptions);
+      const svnToVersionTagChoices = await promises.svnListPromise(`${appRoot}/tags`, svnOptions);
       // const bHasPrevious = (Object.prototype.hasOwnProperty.call(svnToVersionTagChoices, 'entry'));
       if (Array.isArray(svnToVersionTagChoices.list.entry)) {
         qTags = svnToVersionTagChoices.list.entry.filter((q) => !q.name.startsWith('cd_')).slice(-10).map((b) => 'tags/'.concat(b.name));
@@ -208,10 +239,19 @@ async function getTag(url, tagNumberinPreviousSolution, componentEntry) {
   let arrTagsOrBranchesSorted = [];
   let currentArrTagsOrBranchesSorted = [];
   let previousArrTagsOrBranchesSorted = [];
-  const lsTagsOrBranches = await promises.svnListPromise(`"${sListURL}/${derivedSvnTrunkBranchOrTagPart}"`);
 
+  let bHasPrevious = false;
+  let lsTagsOrBranches = [];
+  try {
+    lsTagsOrBranches = await promises.svnListPromise(`"${sListURL}/${derivedSvnTrunkBranchOrTagPart}"`);
+    if (!Array.isArray(lsTagsOrBranches.list.entry)) lsTagsOrBranches.list.entry = [lsTagsOrBranches.list.entry];
+    bHasPrevious = (Array.isArray(lsTagsOrBranches.list.entry) && (lsTagsOrBranches.list.entry.findIndex((a) => a.name === derivedSvnTrunkBranchOrTagNumberPart) > 0 || lsTagsOrBranches.list.entry.length === 1 || (derivedSvnTrunkBranchOrTagNumberPart === 'trunk' && lsTagsOrBranches.list.entry.length >= 1)));// array has items and current version being checked has earlier versions
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.dir('Errors while executing svnListPromise');//
+  }
   // bHasPrevious: consider solutions/components without previous tags or branches
-  let bHasPrevious = Array.isArray(lsTagsOrBranches.list.entry);
+  // let bHasPrevious = Array.isArray(lsTagsOrBranches.list.entry);
   // (Object.prototype.hasOwnProperty.call(lsTagsOrBranches, 'list') ? Object.prototype.hasOwnProperty.call(lsTagsOrBranches.list.entry, 'length') : false);
   let arrTagsOrBranches;
   if (bHasPrevious) {
@@ -219,7 +259,7 @@ async function getTag(url, tagNumberinPreviousSolution, componentEntry) {
     // eslint-disable-next-line no-restricted-globals
     arrTagsOrBranches = lsTagsOrBranches.list.entry.filter((item) => !isNaN(item.name.charAt(0)));
     // properly order semantic tags on unfiltered arrTagsOrBranches
-    if (arrTagsOrBranches.length > 1) {
+    if (arrTagsOrBranches.length >= 1) {
       arrTagsOrBranchesSorted = arrTagsOrBranches.map((a) => a.name.replace(/\d+/g, (n) => +n + 100000)).sort().map((a) => a.replace(/\d+/g, (n) => +n - 100000));
     } else {
       // nothing to be sorted since there's only 1
@@ -330,6 +370,7 @@ async function getTag(url, tagNumberinPreviousSolution, componentEntry) {
       futureTagUrl = currentTagUrl.replace('trunk', `${derivedSvnTrunkBranchOrTagPart}/${futureTagNumber}`);
     }
     future = {
+      tagNumberToUpdateLater: semver.coerce(arrTagsOrBranchesSorted[arrTagsOrBranchesSorted.length - 1].replace(/[^0-9.]/g, '')),
       tagNumber: futureTagNumber,
       tagUrl: futureTagUrl.replace('"', ''),
       tagBaseUrl: currentTagBaseUrl.replace('"', ''),
@@ -342,6 +383,7 @@ async function getTag(url, tagNumberinPreviousSolution, componentEntry) {
 
 module.exports = {
   getArrExternals,
+  getInternals,
   getAuthUser,
   getProbableSolution,
   getSVNContext,

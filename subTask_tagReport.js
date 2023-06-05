@@ -30,11 +30,16 @@ async function perform(componentEntry) {
       const cloneSvnOptions = JSON.parse(JSON.stringify(svn.svnOptions));
       // if (clargs.argv.tagReportMode === 'solution' && bExternalComponent) {
       if (bInternalComponent) {
-        if (thisComponent.solutionPrevious) {
-          cloneSvnOptions.revision = `${thisComponent.solutionPrevious.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;
+        if (thisComponent.previous) {
+          cloneSvnOptions.revision = `${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;
         } else {
           cloneSvnOptions.revision = `1:${thisComponent.current.tagRevisionNumber}`;
         }
+        // if (thisComponent.solutionPrevious) {
+        //   cloneSvnOptions.revision = `${thisComponent.solutionPrevious.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;
+        // } else {
+        //   cloneSvnOptions.revision = `1:${thisComponent.current.tagRevisionNumber}`;
+        // }
       } else if (bExternalComponent) {
         if (thisComponent.previous) {
           cloneSvnOptions.revision = `${thisComponent.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}`;
@@ -63,7 +68,7 @@ async function perform(componentEntry) {
           // eslint-disable-next-line no-restricted-syntax
           for (const singularJiraIssueNumber of jiraIssueNumber.split(',')) {
             let bIssueLevelMajorTagNumberIncrease = false;
-            if (JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('versioned') || JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('interface')) {
+            if (JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('versioned') || JSON.stringify(jiraEntry.paths.path).toLowerCase().includes('interface definitions')) {
               bIssueLevelMajorTagNumberIncrease = true;
               bComponentLevelMajorTagNumberIncrease = true;
             }
@@ -71,15 +76,21 @@ async function perform(componentEntry) {
             if (arrComponentJiraCollection.findIndex((j) => j.jiraIssueNumber === singularJiraIssueNumber) === -1) {
               commitMessageString = jiraEntry.msg.replace(jiraEntry.msg.toUpperCase().match(regExJira).toString(), '').replace(/^. |: |- |, /, '').replace('https://jira.bearingpointcaribbean.com/browse/', '').trim();
               const listAllJiraAngloProjects = ['AIIRD', 'AISSB', 'CONVA', 'IRD', 'MTSSKN', 'MBSAI', 'MTSAI', 'SDTSS', 'SSB', 'MTSGD'];
-              let theIssue; let issueSummary; let issueStatus; let theEpicLink; let epicLink;
+              let theIssue;
+              let issueSummary;
+              let issueStatus;
+              // let theEpicLink;
+              let epicLink;
               if (listAllJiraAngloProjects.includes(singularJiraIssueNumber.split('-')[0])) {
                 try {
                   // eslint-disable-next-line no-await-in-loop
                   theIssue = await jira.getJiraIssue(state.profile.jiraUsername, state.profile.jiraPassword, singularJiraIssueNumber);
-                  issueSummary = theIssue.data.fields.summary;
-                  issueStatus = theIssue.data.fields.status.name;
+                  // issueSummary = theIssue.data.fields.summary;
+                  // issueStatus = theIssue.data.fields.status.name;
+                  issueSummary = singularJiraIssueNumber;
+                  issueStatus = singularJiraIssueNumber;
                   // customfield_10008 of the issue contains the epic link issue
-                  epicLink='';
+                  epicLink = '';
                   // if (theIssue.data.fields.customfield_10008) {
                   //   // eslint-disable-next-line no-await-in-loop
                   //   // 20230203 theEpicLink = await jira.getJiraIssue(state.profile.jiraUsername, state.profile.jiraPassword, theIssue.data.fields.customfield_10008);
@@ -144,7 +155,7 @@ async function perform(componentEntry) {
               if (thisComponent.previous.tagNumber.split('.').length > 3) {
                 thisComponent.previous.tagNumber = thisComponent.previous.tagNumber.split('.').splice(0, 3).join('.');
               }
-              //if (!semver.valid(thisComponent.previous.tagNumber) thisComponent.previous.tagNumber.split('.').length
+              // if (!semver.valid(thisComponent.previous.tagNumber) thisComponent.previous.tagNumber.split('.').length
               derivedNewTagNumber = semver.inc(semver.coerce(thisComponent.previous.tagNumber), bComponentLevelMajorTagNumberIncrease ? 'minor' : 'patch');
               // if specified, increase component number to given tagReportMinimumSemVer
               if (clargs.argv.tagReportMinimumSemVer) {
@@ -164,8 +175,11 @@ async function perform(componentEntry) {
           if (state.profile.verbose) {
             consoleLog.logNewLine('', 'gray');
             if (state.oSolution.previous) {
-              if (clargs.argv.tagReportMode === 'solution') {
+              if (clargs.argv.tagReportMode === 'solution' && thisComponent.toBeTagged) {
                 // eslint-disable-next-line no-nested-ternary
+                const newVersion = semver.inc(semver.coerce(thisComponent.future.tagNumberToUpdateLater), bComponentLevelMajorTagNumberIncrease ? 'minor' : 'patch');
+                thisComponent.future.tagUrl = thisComponent.future.tagUrl.replace(thisComponent.future.tagNumber, newVersion);
+                thisComponent.future.tagNumber = newVersion;
                 consoleLog.logNewLine(`${componentEntry.isTagged ? 'tag:     ' : componentEntry.isExternal ? 'trunk:   ' : 'internal:'} From ${componentEntry.solutionPrevious ? thisComponent.solutionPrevious.tagNumber : state.oSolution.previous.tagNumber} to ${Object.prototype.hasOwnProperty.call(thisComponent, 'future') ? thisComponent.future.tagNumber : thisComponent.current.tagNumber}, rev:{${thisComponent.solutionPrevious ? thisComponent.solutionPrevious.tagRevisionNumber : state.oSolution.previous.tagRevisionNumber}:${thisComponent.current.tagRevisionNumber}}, ${arrComponentJiraCollection.length} JIRA issues`, 'green');
               } else if (clargs.argv.tagReportMode === 'component') {
                 // eslint-disable-next-line no-nested-ternary

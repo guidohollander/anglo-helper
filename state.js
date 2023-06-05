@@ -5,6 +5,7 @@ module.exports = {
   solutionTagsCreated: [],
   arrComponents: [],
   arrExt: [],
+  arrIntFilter: [],
   arrSVNExternalsPreviousSolutionTag: [],
   arrSVNExternalsCurrentSolutionTag: [],
   arrPreviousExternals: [],
@@ -34,4 +35,5 @@ module.exports = {
   startingTime: Date.now(),
   endingTime: Date.now(),
   hasMinDataArgument: false,
+  arrSolutions: [],
 };

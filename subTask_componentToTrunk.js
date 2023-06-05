@@ -75,11 +75,13 @@ async function replaceAndWriteExternals(arrChanges) {
   consoleLog.logNewLine('', 'white');
   consoleLog.logNewLine('updating externals', 'white');
   arrChanges.forEach((item) => {
-    const from = `/${item.component}/${item.from}`;
-    const to = `/${item.component}/${item.to}`;
-    const regExFindReplace = new RegExp(from, 'gi');
-    externalsFileContent = externalsFileContent.replaceAll(regExFindReplace, to);
-    consoleLog.logNewLine(`${from} => ${to}`, 'white');
+    if (!item.component.includes('- Specific')) {
+      const from = `/${item.component}/${item.from}`;
+      const to = `/${item.component}/${item.to}`;
+      const regExFindReplace = new RegExp(from, 'gi');
+      externalsFileContent = externalsFileContent.replaceAll(regExFindReplace, to);
+      consoleLog.logNewLine(`${from} => ${to}`, 'white');
+    }
   });
   if (!clargs.argv.dryRun) {
     await writeExternals(externalsFileContent);
@@ -141,8 +143,7 @@ async function performSetOfTagsToTrunk(arr) {
         choices: arrQ,
         mandatory: true,
         validate(value) {
-          const valid = value.
-          length > 0;
+          const valid = value.length > 0;
           return valid || 'Select at least one component';
         },
       },
@@ -201,6 +202,10 @@ async function performTrunkToTag(arr) {
           // console.log(answers);
           let arrTagsSorted;
           const componentTagList = await promises.svnListPromise(`${state.oSVNInfo.baseURL}${answers.componentSelector.selectedComponent.componentBaseFolder}/tags/`.replace('com//', 'com/'));
+          // if option limitToUnchanged enabled then filter the output to include only the components which have no changes since the creation of the last tag
+          if (clargs.argv.limitToUnchanged) {
+            // here
+          }
           // eslint-disable-next-line no-restricted-globals
           const arrTags = componentTagList.list.entry.filter((item) => !isNaN(item.name.charAt(0)));
           if (arrTags.length > 1) {

@@ -6,98 +6,18 @@ const jira = require('./jira');
 const state = require('./state');
 const util = require('./util');
 
-async function perform(componentEntry) {
-  const bSolutionTaggingEnabled = !clargs.argv.dryRun;
-  const bSolutionJiraHandlingEnabled = !clargs.argv.dryRun;
+async function performComponent(componentEntry) {
   const bComponentTaggingEnabled = !clargs.argv.dryRun;
   const bComponentJiraHandlingEnabled = !clargs.argv.dryRun;
   let jiraIssueCounter;
   // ------------------------------------------------------------------
   // general
   // ------------------------------------------------------------------
-  const tagReportExecutionSolutionData = state.tagReportArray[0];
   const tagReportExecutionComponentData = state.tagReportArray[0].componentCollection.find((y) => (y.component === componentEntry.componentName));
   consoleLog.logThisLine('[E]', 'gray');
   consoleLog.logNewLine('', 'gray');
   consoleLog.logNewLine('', 'gray');
-  // ------------------------------------------------------------------
-  // solution - tagging
-  // ------------------------------------------------------------------
-  if (clargs.argv.tagReportExecutionMode === 'solution' && !state.bDone) {
-    if (tagReportExecutionSolutionData.currentSolutionTagNumber === 'trunk') {
-      // if tag not exists
-      let tagExist;
-      try {
-        const resultInfo = await jira.jiraGet(state.profile.svnOptionsUsername, state.profile.svnOptionsPassword, `${tagReportExecutionSolutionData.solutionTagTargetUrl}`);
-        tagExist = (resultInfo.status === 200);
-      } catch (error) {
-        tagExist = false;
-      }
-      if (!tagExist) {
-        consoleLog.logNewLine(`Tagging solution '${tagReportExecutionSolutionData.solution}' with tag '${tagReportExecutionSolutionData.solutionTagName}'`, 'gray');
-        const svnCopyCommand = `svn copy "${tagReportExecutionSolutionData.solutionTagSourceUrl}" "${tagReportExecutionSolutionData.solutionTagTargetUrl}" -m "${tagReportExecutionSolutionData.solutionTagName}"`;
-        consoleLog.logNewLine(`command: ${svnCopyCommand}`, 'gray');
-        if (bSolutionTaggingEnabled) {
-          try {
-            await util.execShellCommand(svnCopyCommand);
-          } catch (error) {
-            consoleLog.logNewLine(`Errors while executing execShellCommand(tag): ${svnCopyCommand}`, 'red');
-            util.beep(3);
-          }
-        }
-      } else {
-        consoleLog.logNewLine(`Tag already exists. Skip tagging. Continuing...${tagReportExecutionSolutionData.solutionTagNumber}`, 'gray');
-      }
-    } // consoleLog.logNewLine('solution not on trunk', tagReportExecutionSolutionData.solutionTagNumber)
-    consoleLog.logNewLine('', 'gray');
-    // ------------------------------------------------------------------
-    // solution - jira handling
-    // ------------------------------------------------------------------
-    // gather unique projects from jira issues
-    const arrUniqueJiraProjects = [];
-    for (const components of state.tagReportArray[0].componentCollection) {
-      for (const jiraProject of components.jiraProjects) {
-        if (arrUniqueJiraProjects.indexOf(jiraProject) === -1) {
-          arrUniqueJiraProjects.push(jiraProject);
-        }
-      }
-    }
-    let jiraProjectCounter = 1;
-    for await (const jiraProject of arrUniqueJiraProjects) {
-      // create fix version in each distinct project, if it not exists already
-      consoleLog.logNewLine(`[${jiraProjectCounter}/${arrUniqueJiraProjects.length}] adding fix version '${tagReportExecutionSolutionData.solutionTagName}' to project '${jiraProject}'`, 'green');
-      if (bSolutionJiraHandlingEnabled) {
-        try {
-          await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionSolutionData.solutionTagName, false);
-        } catch (error) {
-          consoleLog.logNewLine(`Errors while executing addVersionIfNotExists: ${jiraProject} ${tagReportExecutionSolutionData.solutionTagName}`, 'gray');
-          util.beep(3);
-        }
-      }
-      jiraProjectCounter += 1;
-    }
-    // run only once for the whole solution
-    state.bDone = true;
-    consoleLog.logNewLine('', 'gray');
-  }
-  if (clargs.argv.tagReportExecutionMode === 'solution') {
-    // for each issue in the solution, both internal and external components get the solution tag name
-    jiraIssueCounter = 1;
-    for await (const jiraIssue of tagReportExecutionComponentData.jiraIssues) {
-      // create fix version in each issue
-      consoleLog.logNewLine(`[${jiraIssueCounter}/${tagReportExecutionComponentData.jiraIssues.length}] adding fix version '${tagReportExecutionSolutionData.solutionTagName}' to jira issue '${jiraIssue.jiraIssueNumber}'`, 'green');
-      // perform on sample project
-      if (bSolutionJiraHandlingEnabled) {
-        try {
-          await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionSolutionData.solutionTagName);
-        } catch (error) {
-          consoleLog.logNewLine(`Errors while executing updateJiraIssueFixVersion: ${jiraIssue.jiraIssueNumber} ${tagReportExecutionSolutionData.solutionTagName}`, 'gray');
-          util.beep(3);
-        }
-      }
-      jiraIssueCounter += 1;
-    }
-  }
+
   // ------------------------------------------------------------------
   // solution component - tagging
   // ------------------------------------------------------------------
@@ -187,6 +107,102 @@ async function perform(componentEntry) {
   } // else tagreportexecutionmode
 }
 
+async function performSolution(componentEntry) {
+  const bSolutionTaggingEnabled = !clargs.argv.dryRun;
+  const bSolutionJiraHandlingEnabled = !clargs.argv.dryRun;
+  let jiraIssueCounter;
+  // ------------------------------------------------------------------
+  // general
+  // ------------------------------------------------------------------
+  const tagReportExecutionSolutionData = state.tagReportArray[0];
+  // const tagReportExecutionComponentData = state.tagReportArray[0].componentCollection.find((y) => (y.component === componentEntry.componentName));
+  consoleLog.logThisLine('[E]', 'gray');
+  consoleLog.logNewLine('', 'gray');
+  consoleLog.logNewLine('', 'gray');
+
+  // ------------------------------------------------------------------
+  // solution - tagging
+  // ------------------------------------------------------------------
+  if (clargs.argv.tagReportExecutionMode === 'solution' && !state.bDone) {
+    if (tagReportExecutionSolutionData.currentSolutionTagNumber === 'trunk') {
+      // if tag not exists
+      let tagExist;
+      try {
+        const resultInfo = await jira.jiraGet(state.profile.svnOptionsUsername, state.profile.svnOptionsPassword, `${tagReportExecutionSolutionData.solutionTagTargetUrl}`);
+        tagExist = (resultInfo.status === 200);
+      } catch (error) {
+        tagExist = false;
+      }
+      if (!tagExist) {
+        consoleLog.logNewLine(`Tagging solution '${tagReportExecutionSolutionData.solution}' with tag '${tagReportExecutionSolutionData.solutionTagName}'`, 'gray');
+        const svnCopyCommand = `svn copy "${tagReportExecutionSolutionData.solutionTagSourceUrl}" "${tagReportExecutionSolutionData.solutionTagTargetUrl}" -m "${tagReportExecutionSolutionData.solutionTagName}"`;
+        consoleLog.logNewLine(`command: ${svnCopyCommand}`, 'gray');
+        if (bSolutionTaggingEnabled) {
+          try {
+            await util.execShellCommand(svnCopyCommand);
+          } catch (error) {
+            consoleLog.logNewLine(`Errors while executing execShellCommand(tag): ${svnCopyCommand}`, 'red');
+            util.beep(3);
+          }
+        }
+      } else {
+        consoleLog.logNewLine(`Tag already exists. Skip tagging. Continuing...${tagReportExecutionSolutionData.solutionTagNumber}`, 'gray');
+      }
+    } // consoleLog.logNewLine('solution not on trunk', tagReportExecutionSolutionData.solutionTagNumber)
+    consoleLog.logNewLine('', 'gray');
+    // ------------------------------------------------------------------
+    // solution - jira handling
+    // ------------------------------------------------------------------
+    // gather unique projects from jira issues
+    const arrUniqueJiraProjects = [];
+    for (const components of state.tagReportArray[0].componentCollection) {
+      for (const jiraProject of components.jiraProjects) {
+        if (arrUniqueJiraProjects.indexOf(jiraProject) === -1) {
+          arrUniqueJiraProjects.push(jiraProject);
+        }
+      }
+    }
+    let jiraProjectCounter = 1;
+    for await (const jiraProject of arrUniqueJiraProjects) {
+      // create fix version in each distinct project, if it not exists already
+      consoleLog.logNewLine(`[${jiraProjectCounter}/${arrUniqueJiraProjects.length}] adding fix version '${tagReportExecutionSolutionData.solutionTagName}' to project '${jiraProject}'`, 'green');
+      if (bSolutionJiraHandlingEnabled) {
+        try {
+          await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionSolutionData.solutionTagName, false);
+        } catch (error) {
+          consoleLog.logNewLine(`Errors while executing addVersionIfNotExists: ${jiraProject} ${tagReportExecutionSolutionData.solutionTagName}`, 'gray');
+          util.beep(3);
+        }
+      }
+      jiraProjectCounter += 1;
+    }
+    // run only once for the whole solution
+    state.bDone = true;
+    consoleLog.logNewLine('', 'gray');
+  }
+  if (clargs.argv.tagReportExecutionMode === 'solution') {
+    // for each issue in the solution, both internal and external components get the solution tag name
+    jiraIssueCounter = 1;
+
+    for await (const tagReportExecutionComponentData of tagReportExecutionSolutionData.componentCollection) {
+      for await (const jiraIssue of tagReportExecutionComponentData.jiraIssues) {
+        // create fix version in each issue
+        consoleLog.logNewLine(`[${jiraIssueCounter}}] adding fix version '${tagReportExecutionSolutionData.solutionTagName}' to jira issue '${jiraIssue.jiraIssueNumber}'`, 'green');
+        // perform on sample project
+        if (bSolutionJiraHandlingEnabled) {
+          try {
+            await jira.updateJiraIssueFixVersion(state.profile.jiraUsername, state.profile.jiraPassword, jiraIssue.jiraIssueNumber, tagReportExecutionSolutionData.solutionTagName);
+          } catch (error) {
+            consoleLog.logNewLine(`Errors while executing updateJiraIssueFixVersion: ${jiraIssue.jiraIssueNumber} ${tagReportExecutionSolutionData.solutionTagName}`, 'gray');
+            util.beep(3);
+          }
+        }
+        jiraIssueCounter += 1;
+      }
+    }
+  }
+}
+
 async function batchUpdateExternals() {
   // create an array based on the components in the tagreport and use it as argument for replaceAndWriteExternals
   const argreplaceAndWriteExternals = [];
@@ -208,6 +224,7 @@ async function batchUpdateExternals() {
 }
 
 module.exports = {
-  perform,
+  performComponent,
+  performSolution,
   batchUpdateExternals,
 };
