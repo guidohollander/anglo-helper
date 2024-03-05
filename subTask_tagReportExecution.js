@@ -168,7 +168,7 @@ async function performSolution(componentEntry) {
       consoleLog.logNewLine(`[${jiraProjectCounter}/${arrUniqueJiraProjects.length}] adding fix version '${tagReportExecutionSolutionData.solutionTagName}' to project '${jiraProject}'`, 'green');
       if (bSolutionJiraHandlingEnabled) {
         try {
-          await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionSolutionData.solutionTagName, false);
+          await jira.addVersionIfNotExists(state.profile.jiraUsername, state.profile.jiraPassword, jiraProject, tagReportExecutionSolutionData.solutionTagName, true);
         } catch (error) {
           consoleLog.logNewLine(`Errors while executing addVersionIfNotExists: ${jiraProject} ${tagReportExecutionSolutionData.solutionTagName}`, 'gray');
           util.beep(3);

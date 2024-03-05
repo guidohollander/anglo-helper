@@ -717,7 +717,7 @@ async function prequal() {
 
   // svn context
   state.oSVNInfo = await svn.getSVNContext(state.app, state.workingCopyFolder);
-  if (isFirstTimeUse) {
+  if (isFirstTimeUse || !clargs.argv.clone === '') {
     consoleLog.renderTitle();
     const questions = [
       {
@@ -873,6 +873,7 @@ async function prequal() {
     main();
   } else if (clargs.argv.clone) {
     await subTaskClone.perform();
+    process.exit(state.exitCode);
   } else {
     if (Object.prototype.hasOwnProperty.call(clargs.argv, 'profile') && (clargs.argv.profile.length > 0)) {
       // eslint-disable-next-line import/no-dynamic-require, global-require

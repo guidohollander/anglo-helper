@@ -3,7 +3,7 @@ const consoleLog = require('./consoleLog');
 const state = require('./state');
 
 async function perform(componentEntry) {
-  if (componentEntry.isExternal) {
+  if (componentEntry.isExternal && componentEntry.isFrontEnd) {
     if (componentEntry.isTagged) {
       consoleLog.logThisLine('[D]', 'green');
     } else {
