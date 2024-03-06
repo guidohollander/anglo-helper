@@ -109,7 +109,7 @@ async function perform(componentEntry) {
         FlywayDirWithQuotedProjectName = `${dirWithQuotedProjectName}/_GENERAL/DATABASE_MIGRATIONS/`;
         flywayLocations = JSON.stringify(`filesystem:${FlywayDir}`);
       } else {
-        flywayTable = `_MigrationsHistory_${JSON.stringify(componentEntry.key)}`;
+        flywayTable = JSON.stringify(`_MigrationsHistory_${componentEntry.key}`);
         suffix = '/_CONTINUOUS_DELIVERY/DATABASE_MIGRATIONS/';
         FlywayDir = `${dir}${suffix}`;
         FlywayDirWithQuotedProjectName = `${dirWithQuotedProjectName}/_CONTINUOUS_DELIVERY/DATABASE_MIGRATIONS/`;
