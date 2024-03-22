@@ -25,6 +25,8 @@ async function getArrExternals(url) {
     }
   } else {
     svnExternals = await promises.svnPropGetPromise('svn:externals', `${url}`, svnOptions);
+    const fn = `${path.dirname(state.workingCopyFolder)}/.anglo-helper/${util.urlToFileName(url)}_cached_externals_raw.json`;
+    fs.writeFileSync(fn, JSON.stringify(svnExternals, null, 2));
   }
   return svnExternals.target.property._.split('\r\n');
 }
