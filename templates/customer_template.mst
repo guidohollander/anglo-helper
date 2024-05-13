@@ -1,0 +1,22 @@
+---
+solution: {{solution}}
+project folder: {{projectFolder}}
+repo: {{repo}}
+customer_code: {{customerCode}}
+tag: #customer
+---
+# {{name}}
+
+## implementations
+```dataview
+TABLE WITHOUT ID link(file.link, Title) AS "title", release_date  from "anglo-helper/implementations"
+where contains(customer_code,this.customer_code)
+sort release_date desc
+```
+## component classes of last implementation
+```dataview
+table without id link(file.outlinks.file.frontmatter.component_name) as "Component class"
+from "anglo-helper/implementations"
+where contains(customer_code,this.customer_code)
+SORT file.link DESC LIMIT 1
+```

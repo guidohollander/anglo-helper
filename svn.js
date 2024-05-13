@@ -118,7 +118,7 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
   }
 
   state.oAppContext.solution = await getProbableSolution();
-  let appRoot = `https://svn.bearingpointcaribbean.com/svn/${state.oAppContext.solution}`;
+  let appRoot = `https://svn.blyce.com/svn/${state.oAppContext.solution}`;
   if (!fs.existsSync(dir)) {
     consoleLog.renderTitleToVersion();
     let qTags = [];
@@ -172,7 +172,7 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
     await inquirer
       .prompt(questionsToVersion)
       .then(async (answersToVersion) => {
-        const url = `https://svn.bearingpointcaribbean.com/svn/${state.oAppContext.solution.toUpperCase()}/${answersToVersion.selectedSVNVersion}/${f}`;
+        const url = `https://svn.blyce.com/svn/${state.oAppContext.solution.toUpperCase()}/${answersToVersion.selectedSVNVersion}/${f}`;
         const execCommand = `svn checkout "${url}" "${dir}" --non-interactive`;
         await util.execShellCommand(execCommand);
       })

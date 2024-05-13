@@ -174,7 +174,7 @@ async function main() {
     state.arrSolutions = require(`${path.dirname(state.workingCopyFolder)}/.anglo-helper/solutions.json`);
     state.currentSolution = state.arrSolutions.find((s) => s.name === state.oSVNInfo.svnApp);
 
-    // state.oSVNInfo.remoteRepo = 'https://svn.bearingpointcaribbean.com/svn/MTS_ANGUILLA/tags/2.0.0';
+    // state.oSVNInfo.remoteRepo = 'https://svn.blyce.com/svn/MTS_ANGUILLA/tags/2.0.0';
     state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionFrom);
     state.prettySVNUsername = await svn.getAuthUser();
 

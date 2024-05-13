@@ -5,7 +5,7 @@
         "customer": "ANGUILLA",
         "customerCode": "aia_mbs",
         "class": "MxS",
-        "url": "https://svn.bearingpointcaribbean.com/svn/MBS_ANGUILLA/trunk"
+        "url": "https://svn.blyce.com/svn/MBS_ANGUILLA/trunk"
     },
     {
         "name": "MTS_ANGUILLA",
@@ -13,7 +13,7 @@
         "customer": "ANGUILLA",
         "customerCode": "aia_mts",
         "class": "MxS",
-        "url": "https://svn.bearingpointcaribbean.com/svn/MTS_ANGUILLA/trunk"
+        "url": "https://svn.blyce.com/svn/MTS_ANGUILLA/trunk"
         
     },
     {
@@ -22,7 +22,7 @@
         "customer": "ANGUILLA",
         "customerCode": "aia_online",
         "class": "ONLINE",
-        "url": "https://svn.bearingpointcaribbean.com/svn/ONLINE_ANGUILLA/trunk"
+        "url": "https://svn.blyce.com/svn/ONLINE_ANGUILLA/trunk"
     },    
     {
         "name": "MTS_SKN",
@@ -30,7 +30,7 @@
         "customer": "SKN",
         "customerCode": "skn_mts",
         "class": "MxS",
-        "url": "https://svn.bearingpointcaribbean.com/svn/MTS_SKN/trunk"
+        "url": "https://svn.blyce.com/svn/MTS_SKN/trunk"
     },
     {
         "name": "ONLINE_SKN",
@@ -38,7 +38,7 @@
         "customer": "SKN",
         "customerCode": "skn_online",
         "class": "ONLINE",
-        "url": "https://svn.bearingpointcaribbean.com/svn/ONLINE_SKN/trunk"
+        "url": "https://svn.blyce.com/svn/ONLINE_SKN/trunk"
     },
     {
         "name": "BDSU_MTS",
@@ -46,7 +46,7 @@
         "customer": "Belastingdienst Suriname",
         "customerCode": "bdsu",
         "class": "MxS",
-        "url": "https://svn.bearingpointcaribbean.com/svn/BDSU_MTS/trunk"
+        "url": "https://svn.blyce.com/svn/BDSU_MTS/trunk"
     },
     {
         "name": "MTS_GRENADA",
@@ -54,7 +54,7 @@
         "customer": "GRENADA",
         "customerCode": "gd_mts",
         "class": "MxS",
-        "url": "https://svn.bearingpointcaribbean.com/svn/MTS_GRENADA/trunk"
+        "url": "https://svn.blyce.com/svn/MTS_GRENADA/trunk"
     },
     {
         "name": "ONLINE_GD",
@@ -62,6 +62,6 @@
         "customer": "GRENADA",
         "customerCode": "gd_online",
         "class": "ONLINE",
-        "url": "https://svn.bearingpointcaribbean.com/svn/ONLINE_GD/trunk"
+        "url": "https://svn.blyce.com/svn/ONLINE_GD/trunk"
     }            
 ]

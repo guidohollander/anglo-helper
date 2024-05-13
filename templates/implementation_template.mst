@@ -1,0 +1,27 @@
+---
+implementation_name: {{name}}
+component_version: {{version}}
+release_date: {{releaseDate}}
+solution: {{solution}}
+country: {{country}}
+customer_code: {{customerCode}}
+tag: #implementation
+---
+
+# `= this.implementation_name`
+
+## externals
+{{externals}}
+
+## internals
+{{internals}}
+
+## components
+This implementation thereby uses  the following (general) components:
+```dataview
+table without id link(component_name) as "Component" from outgoing([[]])
+sort component_name asc
+```
+
+## List of jira issues
+{{jiraIssues}}

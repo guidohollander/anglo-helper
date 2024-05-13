@@ -4,6 +4,7 @@ component_name: {{componentName}}
 component_version: {{relativeUrl}}
 svn_path: {{componentBaseFolder}}
 svn_core_folder: {{bareComponentName}}
+tag: #component
 ---
 
 ## `= this.component_name + " " +this.component_version`
@@ -18,9 +19,10 @@ table customer
  ,component_version  as "version"
  ,solution
  ,country  
-from "anglo-helper/implementations"
+from "implementations"
 where contains(file.outlinks,this.file.link)
 ```
 
 
 ## List of jira issues
+{{jiraIssues}}

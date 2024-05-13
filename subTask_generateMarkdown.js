@@ -2,7 +2,9 @@
 const fs = require('fs');
 const { render } = require('mustache');
 const list = require('markdown-list');
+const path = require('path');
 const state = require('./state');
+
 
 async function renderComponentObject(componentEntry, jiraCollection) {
   componentEntry.jiraIssues = jiraCollection ? list(jiraCollection.jiraIssues.map((a) => `JIRA:${a.jiraIssueNumber}`)) : '';
@@ -11,7 +13,8 @@ async function renderComponentObject(componentEntry, jiraCollection) {
 async function performComponent(componentEntry, jiraCollection) {
   if (componentEntry.isCoreComponent) {
     const component = await renderComponentObject(componentEntry, jiraCollection);
-    const output = render(fs.readFileSync(`${state.profile.obsidian}/.templates/component_template.mst`).toString(), component);
+    const templateFilePath = path.join(__dirname, '/templates/component_template.mst');
+    const output = render(fs.readFileSync(templateFilePath).toString(), component);
     const componentDir = `${state.profile.obsidian}/components/`;
     const dir = `${componentDir}${componentEntry.bareComponentName.replace(' ', '-').replace('/', '-')}`;
     const filename = `${dir}/${componentEntry.componentName.replace(' ', '-')}-${componentEntry.relativeUrl.replace('/', '-')}`.toLowerCase();
@@ -41,7 +44,9 @@ async function renderImplementationObject(implementation, internalsAndExternals,
 
 async function performImplementation(implementationRaw, internalsAndExternalsRaw, jiraCollection) {
   const implementation = await renderImplementationObject(implementationRaw, internalsAndExternalsRaw, jiraCollection);
-  const output = render(fs.readFileSync(`${state.profile.obsidian}/.templates/implementation_template.mst`).toString(), implementation);  
+  const templateFilePath = path.join(__dirname, '/templates/implementation_template.mst');
+  const output = render(fs.readFileSync(templateFilePath).toString(), implementation);  
+  // const output = render(fs.readFileSync(`${state.profile.obsidian}/.templates/implementation_template.mst`).toString(), implementation);  
   const dir = `${state.profile.obsidian}/implementations`;
   const filename = `${dir}/${implementation.name.replace(' ', '-').replace('/', '-')}-${implementation.version.replace('/', '-')}`.toLowerCase();
   if (!fs.existsSync(dir)) {
@@ -63,7 +68,9 @@ async function renderCustomerObject(Customer) {
 
 async function performCustomer(CustomerRaw) {
   const Customer = await renderCustomerObject(CustomerRaw);
-  const output = render(fs.readFileSync(`${state.profile.obsidian}/.templates/customer_template.mst`).toString(), Customer);  
+  const templateFilePath = path.join(__dirname, '/templates/customer_template.mst');
+  const output = render(fs.readFileSync(templateFilePath).toString(), Customer);  
+  // const output = render(fs.readFileSync(`${state.profile.obsidian}/.templates/customer_template.mst`).toString(), Customer);  
   const dir = `${state.profile.obsidian}/customers`;
   const filename = `${dir}/${Customer.name.replace(' ', '-').replace('/', '-')}`.toLowerCase();
   if (!fs.existsSync(dir)) {

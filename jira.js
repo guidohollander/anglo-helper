@@ -22,7 +22,7 @@ const jiraPost = async (username, password, method, url, data) => {
 // intend: create a new version for a particular project, if necessary
 async function updateJiraIssueFixVersion(jiraUsername, jiraPassword, jiraIssueNumber, fixVersion) {
   const data = `{"update":{"fixVersions":[{"add":{"name":"${fixVersion}"}}]}}`;
-  const result = await jiraPost(jiraUsername, jiraPassword, 'put', `https://jira.bearingpointcaribbean.com/rest/api/latest/issue/${jiraIssueNumber}?notifyUsers=false`, data);
+  const result = await jiraPost(jiraUsername, jiraPassword, 'put', `https://blyce.atlassian.net//rest/api/latest/issue/${jiraIssueNumber}?notifyUsers=false`, data);
   if (result.self) {
     consoleLog.logNewLine('Updated', result.self, 'gray');
     return result.self;
@@ -50,12 +50,12 @@ const jiraGet = async (username, password, url) => {
   return -1;
 };
 async function getJiraIssue(jiraUsername, jiraPassword, jiraIssueNumber) {
-  return jiraGet(jiraUsername, jiraPassword, `https://jira.bearingpointcaribbean.com/rest/api/latest/issue/${jiraIssueNumber}`);
+  return jiraGet(jiraUsername, jiraPassword, `https://blyce.atlassian.net//rest/api/latest/issue/${jiraIssueNumber}`);
 }
 // intend: create a new version for a particular project, if necessary
 async function addVersionIfNotExists(jiraUsername, jiraPassword, project, versionToAdd, bReleased) {
   // get all versions of project and check if name already exists
-  const versions = await jiraGet(jiraUsername, jiraPassword, `https://jira.bearingpointcaribbean.com/rest/api/latest/project/${project}/versions`);
+  const versions = await jiraGet(jiraUsername, jiraPassword, `https://blyce.atlassian.net//rest/api/latest/project/${project}/versions`);
   // check if project fixverison exists
   if (versions.data.findIndex((element) => (element.name === versionToAdd)) === -1) {
     const data = JSON.stringify({
@@ -66,7 +66,7 @@ async function addVersionIfNotExists(jiraUsername, jiraPassword, project, versio
       projectId: versions.data[0].projectId,
       released: bReleased,
     });
-    const result = await jiraPost(jiraUsername, jiraPassword, 'post', 'https://jira.bearingpointcaribbean.com/rest/api/latest/version', data);
+    const result = await jiraPost(jiraUsername, jiraPassword, 'post', 'https://blyce.atlassian.net//rest/api/latest/version', data);
     if (result.self) {
       consoleLog.logNewLine('Added', result.self);
       return result.self;
