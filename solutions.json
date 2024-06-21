@@ -63,5 +63,13 @@
         "customerCode": "gd_online",
         "class": "ONLINE",
         "url": "https://svn.blyce.com/svn/ONLINE_GD/trunk"
-    }            
+    },
+    {
+        "name": "MBS_GRENADA",
+        "functionalName": "MBS Grenada",
+        "customer": "GRENADA",
+        "customerCode": "gd_mbs",
+        "class": "MxS",
+        "url": "https://svn.blyce.com/svn/MBS_GRENADA/trunk"
+    }                
 ]

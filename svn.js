@@ -284,7 +284,7 @@ async function getTag(url, tagNumberinPreviousSolution, componentEntry) {
     previousRelativeUrl;
 
   // previous component and component in previous solution
-  if (tagNumberinPreviousSolution && tagNumberinPreviousSolution !== '' && !tagNumberinPreviousSolution==='trunk') {
+  if (tagNumberinPreviousSolution && tagNumberinPreviousSolution !== '' && tagNumberinPreviousSolution!=='trunk') {
     previousArrTagsOrBranchesSorted = arrTagsOrBranchesSorted.find((e) => e === tagNumberinPreviousSolution);
     if (bHasPrevious) {
       previousUrl = url.replace(currentArrTagsOrBranchesSorted, bSolutionOrComponentOnTrunk ? `${derivedSvnTrunkBranchOrTagPart}/` : ''); // + previousArrTagsOrBranchesSorted;      
