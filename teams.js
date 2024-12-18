@@ -7,7 +7,8 @@ async function postMessageToTeams(title, message, postedBy, notifyPublicly = fal
   let mentionEmailaddress = 'a891cf94.bearingpointcaribbean.com@amer.teams.ms';
   if (notifyPublicly) {
     // override webhookURL to actual non-experimental teams channel
-    webhookURL = 'https://bearingpointco.webhook.office.com/webhookb2/dfaf75a2-2287-4790-99cf-1f99cd730fa8@77e59f5e-c89e-4883-822c-b5f9a0c6dd84/IncomingWebhook/88ad28fd012949ecb1c5a95219c4d9a5/faf1dac6-8493-43bc-b462-08fba6e2d0fd'; // this holds my webhook URL
+    // webhookURL = 'https://bearingpointco.webhook.office.com/webhookb2/dfaf75a2-2287-4790-99cf-1f99cd730fa8@77e59f5e-c89e-4883-822c-b5f9a0c6dd84/IncomingWebhook/88ad28fd012949ecb1c5a95219c4d9a5/faf1dac6-8493-43bc-b462-08fba6e2d0fd'; // this holds my webhook URL
+    webhookURL = 'https://bearingpointco.webhook.office.com/webhookb2/dfaf75a2-2287-4790-99cf-1f99cd730fa8@77e59f5e-c89e-4883-822c-b5f9a0c6dd84/IncomingWebhook/88ad28fd012949ecb1c5a95219c4d9a5/faf1dac6-8493-43bc-b462-08fba6e2d0fd/V2XVCZMElxnTrXm6cAdINAgblu9LlOG42JZ1SRhdWYps41'; // this holds my webhook URL
     mentionEmailaddress = 'bf4e4915.bearingpointcaribbean.com@amer.teams.ms';
   }
   const c2 = {
