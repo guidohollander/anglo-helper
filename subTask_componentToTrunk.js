@@ -117,7 +117,7 @@ async function performTagToTrunk(arr) {
       try {
         if (answers.areyousure) {
           const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers.componentSelector, answers.componentSelector.selectedComponent.relativeUrl, 'trunk');
-          await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, !clargs.argv.quiet);
+          // await teams.postMessageToTeams('anglo-helper --componentToTrunk', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, !clargs.argv.quiet);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
             await subTaskSwitch.perform(componentEntry);
@@ -163,7 +163,7 @@ async function performSetOfTagsToTrunk(arr) {
       try {
         if (answers.areyousure) {
           let progressCounter = 1;
-          await teams.postMessageToTeams('anglo-helper --componentsToTrunk', `${answers.componentSelector.length} projects from tag to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, !clargs.argv.quiet);
+          // await teams.postMessageToTeams('anglo-helper --componentsToTrunk', `${answers.componentSelector.length} projects from tag to trunk ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, !clargs.argv.quiet);
           // eslint-disable-next-line no-restricted-syntax
           for await (const entry of answers.componentSelector) {
             const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(entry, entry.selectedComponent.relativeUrl, 'trunk');            
@@ -232,7 +232,7 @@ async function performTrunkToTag(arr) {
       try {
         if (answers.areyousure) {
           const oUpdatedExternals = await replaceAndWriteExternalsComponentToTrunk(answers.componentSelector, 'trunk', `tags/${answers.tagSelector}`);
-          await teams.postMessageToTeams('anglo-helper --componentToTag', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, !clargs.argv.quiet);
+          // await teams.postMessageToTeams('anglo-helper --componentToTag', `${state.app.toUpperCase()} ${state.oSVNInfo.angloClient} ${state.oSVNInfo.angloSVNPath}: ${answers.componentSelector.selectedComponent.key} from ${answers.componentSelector.selectedComponent.oldRelativeUrl} to ${answers.componentSelector.selectedComponent.relativeUrl} ${answers.jiraIssue ? `[${answers.jiraIssue}]` : ''}`, state.prettySVNUsername, !clargs.argv.quiet);
           // eslint-disable-next-line no-restricted-syntax
           for await (const componentEntry of oUpdatedExternals.updateComponentEntries) {
             await subTaskSwitch.perform(componentEntry);

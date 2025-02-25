@@ -13,7 +13,7 @@ const consoleLog = require('./consoleLog');
 const db = require('./db');
 const promises = require('./promises');
 const state = require('./state');
-const subTaskCheckSpecifics = require('./subTask_checkSpecifics');
+// const subTaskCheckSpecifics = require('./subTask_checkSpecifics');
 const subTaskDeploymentCheck = require('./subTask_deploymentCheck');
 const subTaskCompareSpecific = require('./subTask_compareSpecific');
 const subTaskFlyway = require('./subTask_flyway');
@@ -22,7 +22,7 @@ const subTaskClone = require('./subTask_clone');
 const subTaskSwitch = require('./subTask_switch');
 const subTaskTagReport = require('./subTask_tagReport');
 const subTaskTagReportExecution = require('./subTask_tagReportExecution');
-const subTaskGenerateMarkdown = require('./subTask_generateMarkdown');
+// const subTaskGenerateMarkdown = require('./subTask_generateMarkdown');
 const subTaskUpdate = require('./subTask_update');
 const svn = require('./svn');
 const comsclient = require('./coms');
@@ -178,7 +178,7 @@ async function main() {
     state.oSolution = await svn.getTag(`${state.oSVNInfo.remoteRepo}`, clargs.argv.solutionFrom);
     state.prettySVNUsername = await svn.getAuthUser();
 
-    comsclient.client.publish(`${comsclient.mqttTopic}${state.currentSolution.customerCode}`, JSON.stringify(`{implementation: '${state.currentSolution.customerCode}', user: '${state.prettySVNUsername}}'`, null, '\t'));
+    // comsclient.client.publish(`${comsclient.mqttTopic}${state.currentSolution.customerCode}`, JSON.stringify(`{implementation: '${state.currentSolution.customerCode}', user: '${state.prettySVNUsername}}'`, null, '\t'));
 
     // implicitly enable checkSpecifics when update is set to true in profile
     if (state.profile.autoUpdate && state.oSolution.current.relativeUrl === 'trunk') {
@@ -525,7 +525,7 @@ async function main() {
             }
             // perform check of specifics files
             if (clargs.argv.checkSpecifics) {
-              await subTaskCheckSpecifics.perform(entry);
+              // await subTaskCheckSpecifics.perform(entry);
             } else {
               // checkSpecifics not enabled
             }
@@ -539,7 +539,7 @@ async function main() {
               await subTaskTagReportExecution.performComponent(entry);
             } // tagReport exectuion not enabled
             if (clargs.argv.generateMarkdown) {
-              await subTaskGenerateMarkdown.performComponent(entry, state.arrTagReportCollection.find((s) => s.bareComponentName === entry.bareComponentName));
+              // await subTaskGenerateMarkdown.performComponent(entry, state.arrTagReportCollection.find((s) => s.bareComponentName === entry.bareComponentName));
             } // generateMarkdown not enabled
           } else if (!clargs.argv.tagReport && !clargs.argv.tagReportExecution) {
             anglo.memorable('[M]', state.arrMissingCollection, entry, state.oSVNInfo.baseURL + entry.path.replace(/^\//, '').key, 'green');
@@ -571,8 +571,8 @@ async function main() {
       await subTaskTagReportExecution.performSolution();
     }
     if (clargs.argv.generateMarkdown) {
-      await subTaskGenerateMarkdown.performImplementation(state, arrAll, state.arrTagReportCollection);
-      await subTaskGenerateMarkdown.performCustomer(state);
+      // await subTaskGenerateMarkdown.performImplementation(state, arrAll, state.arrTagReportCollection);
+      // await subTaskGenerateMarkdown.performCustomer(state);
     } // generateMarkdown not enabled
 
     const SummaryCount = (state.arrMissingCollection.length + state.arrSwitchUpdateCollection.length + state.arrSVNUpdatedCollection.length + state.arrFlywayUpdatedCollection.length + state.arrCompareSpecificUpdateCollection.length + state.arrSVNPotentialUpdateCollection.length + state.arrDeploymentCheckCollection.length + state.arrTagReportCollection.length + state.arrUnlinkedFolderCollection.length);
