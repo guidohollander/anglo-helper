@@ -71,5 +71,13 @@
         "customerCode": "gd_mbs",
         "class": "MxS",
         "url": "https://svn.blyce.com/svn/MBS_GRENADA/trunk"
-    }                
+    },
+    {
+        "name": "MTS_VCT",
+        "functionalName": "MTS St Vincent & Grenadines",
+        "customer": "GRENADA",
+        "customerCode": "vct_mts",
+        "class": "MxS",
+        "url": "https://svn.blyce.com/svn/MTS_VCT/trunk"
+    }               
 ]
