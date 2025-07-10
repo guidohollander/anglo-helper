@@ -5,14 +5,14 @@
   "description": "Anglo helper",
   "main": "index.js",
   "bin": {
-    "anglo-helper": "./index.js"
+    "anglo-helper": "index.js"
   },
   "preferGlobal": true,
   "author": "Guido Hollander",
   "license": "ISC",
   "dependencies": {
     "await-spawn": "^4.0.2",
-    "axios": "^0.27.2",
+    "axios": "^1.10.0",
     "clear": "^0.1.0",
     "find-process": "^1.4.7",
     "glob": "^8.0.3",
@@ -22,7 +22,7 @@
     "inquirer-select-directory": "^1.2.0",
     "markdown-list": "^0.1.0",
     "mqtt": "^4.3.7",
-    "mssql": "^9.0.0",
+    "mssql": "^11.0.1",
     "mustache": "^4.2.0",
     "node-svn-ultimate": "^1.2.1",
     "ps-node": "^0.1.6",

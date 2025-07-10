@@ -713,14 +713,13 @@ async function prequal() {
     sequenceNumber = 1;
   }
 
-  catchKeyPress();
+  // catchKeyPress();
 
   // svn context
   state.oSVNInfo = await svn.getSVNContext(state.app, state.workingCopyFolder);
   if (isFirstTimeUse || !clargs.argv.clone === '') {
     consoleLog.renderTitle();
     const questions = [
-      {
         type: 'confirm',
         name: 'autoSwitch',
         message: 'SVN: Would you like to automatically [S]witch to the correct external locations? ',
