@@ -7,7 +7,6 @@ const util = require('./util');
 const promises = require('./promises');
 const consoleLog = require('./consoleLog');
 const state = require('./state');
-const teams = require('./teams');
 const subTaskSwitch = require('./subTask_switch');
 const clargs = require('./arguments');
 const svn = require('./svn');
