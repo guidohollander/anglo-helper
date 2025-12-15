@@ -112,9 +112,9 @@ async function getSVNContext(app, workingCopyFolder, switchedTo) {
     dir = `.//${app.toUpperCase()} Portal`;
     f = `${state.app.toUpperCase()} Portal`;
   } else if (app === 'online') {
-    dirWithQuotedProjectName = (`${workingCopyFolder}\\${JSON.stringify('SC 2FA - specific')}`).replace(/[\\/]+/g, '/');// .replace(/^([a-zA-Z]+:|\.\/)/, '');
-    dir = './/SC 2FA - specific';
-    f = 'SC 2FA - specific';
+    dirWithQuotedProjectName = (`${workingCopyFolder}\\${JSON.stringify('SC IDP - specific')}`).replace(/[\\/]+/g, '/');// .replace(/^([a-zA-Z]+:|\.\/)/, '');
+    dir = './/SC IDP - specific';
+    f = 'SC IDP - specific';
   }
 
   state.oAppContext.solution = await getProbableSolution();
